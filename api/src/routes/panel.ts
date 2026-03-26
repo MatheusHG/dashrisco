@@ -1,0 +1,467 @@
+import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
+import { z } from "zod";
+import { authorize, authenticate } from "../middlewares/auth";
+import { createLog } from "../middlewares/logger";
+import { eventBus } from "../services/eventBus";
+
+const updateTaskSchema = z.object({
+  status: z.enum(["open", "in_progress", "done"]).optional(),
+  priority: z.number().int().min(1).max(4).optional(),
+  title: z.string().optional(),
+  description: z.string().nullable().optional(),
+  assignedTo: z.string().nullable().optional(),
+});
+
+// SSE clients pool
+const sseClients = new Set<{ res: any; alive: boolean }>();
+
+// Broadcast new alerts to all SSE clients
+eventBus.on("panel-alert", (alert: any) => {
+  const data = `data: ${JSON.stringify(alert)}\n\n`;
+  for (const client of sseClients) {
+    try {
+      client.res.write(data);
+    } catch {
+      client.alive = false;
+    }
+  }
+});
+
+export async function panelRoutes(app: FastifyInstance) {
+  // ==================
+  // SSE STREAM (real-time notifications)
+  // ==================
+  app.get("/notifications/stream", async (request: FastifyRequest, reply: FastifyReply) => {
+    // Authenticate via query param (EventSource doesn't support headers)
+    const token = (request.query as any).token;
+    if (token) {
+      try {
+        await app.jwt.verify(token);
+      } catch {
+        return reply.status(401).send({ error: "Invalid token" });
+      }
+    } else {
+      // Try header auth
+      try {
+        await authenticate(request, reply);
+        if (reply.sent) return;
+      } catch {
+        return reply.status(401).send({ error: "Unauthorized" });
+      }
+    }
+
+    const raw = reply.raw;
+    raw.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "Access-Control-Allow-Origin": "*",
+    });
+
+    // Send initial connected event
+    raw.write("data: {\"connected\":true}\n\n");
+
+    const client = { res: raw, alive: true };
+    sseClients.add(client);
+
+    // Heartbeat every 30s
+    const heartbeat = setInterval(() => {
+      try {
+        raw.write(":heartbeat\n\n");
+      } catch {
+        client.alive = false;
+      }
+    }, 30000);
+
+    // Cleanup on close
+    request.raw.on("close", () => {
+      clearInterval(heartbeat);
+      sseClients.delete(client);
+    });
+
+    // Don't let Fastify close the response
+    await reply.hijack();
+  });
+
+  // ==================
+  // PANEL ALERTS
+  // ==================
+
+  // Recent notifications (for the bell icon)
+  app.get(
+    "/notifications",
+    { preHandler: authorize("panel:read", "alerts:read") },
+    async (request) => {
+      const query = request.query as { since?: string };
+
+      const dateFilter = query.since
+        ? { createdAt: { gt: new Date(query.since) } }
+        : {};
+
+      // Alerts with publishPanel=true OR system alerts (group_lock)
+      const alerts = await app.prisma.panelAlert.findMany({
+        where: {
+          ...dateFilter,
+          OR: [
+            { alertConfig: { publishPanel: true } },
+            { source: "group_lock" },
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        include: {
+          alertConfig: { select: { name: true } },
+        },
+      });
+
+      return alerts;
+    }
+  );
+
+  // List panel alerts
+  app.get(
+    "/alerts",
+    { preHandler: authorize("panel:read", "alerts:read") },
+    async (request) => {
+      const query = request.query as {
+        page?: string;
+        limit?: string;
+        webhookType?: string;
+        alertConfigId?: string;
+        startDate?: string;
+        endDate?: string;
+      };
+
+      const page = Math.max(1, Number(query.page) || 1);
+      const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
+      const skip = (page - 1) * limit;
+
+      const where: Record<string, unknown> = {};
+      if (query.webhookType) where.webhookType = query.webhookType;
+      if (query.alertConfigId) where.alertConfigId = query.alertConfigId;
+      if (query.startDate || query.endDate) {
+        where.createdAt = {};
+        if (query.startDate)
+          (where.createdAt as Record<string, unknown>).gte = new Date(
+            query.startDate
+          );
+        if (query.endDate)
+          (where.createdAt as Record<string, unknown>).lte = new Date(
+            query.endDate
+          );
+      }
+
+      const [alerts, total] = await Promise.all([
+        app.prisma.panelAlert.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { createdAt: "desc" },
+          include: {
+            alertConfig: { select: { id: true, name: true } },
+          },
+        }),
+        app.prisma.panelAlert.count({ where }),
+      ]);
+
+      return { alerts, total, page, limit, totalPages: Math.ceil(total / limit) };
+    }
+  );
+
+  // ==================
+  // PANEL TASKS
+  // ==================
+
+  // List panel tasks
+  app.get(
+    "/tasks",
+    { preHandler: authorize("panel:read") },
+    async (request) => {
+      const query = request.query as {
+        page?: string;
+        limit?: string;
+        status?: string;
+        completedBy?: string;
+        startDate?: string;
+        endDate?: string;
+      };
+
+      const page = Math.max(1, Number(query.page) || 1);
+      const limit = Math.min(200, Math.max(1, Number(query.limit) || 20));
+      const skip = (page - 1) * limit;
+
+      const where: Record<string, unknown> = {};
+      if (query.status) where.status = query.status;
+      if (query.completedBy) where.completedBy = query.completedBy;
+      if (query.startDate || query.endDate) {
+        where.createdAt = {};
+        if (query.startDate)
+          (where.createdAt as Record<string, unknown>).gte = new Date(query.startDate);
+        if (query.endDate)
+          (where.createdAt as Record<string, unknown>).lte = new Date(query.endDate);
+      }
+
+      const [tasks, total, users] = await Promise.all([
+        app.prisma.panelTask.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { createdAt: "desc" },
+          include: {
+            _count: { select: { comments: true } },
+          },
+        }),
+        app.prisma.panelTask.count({ where }),
+        app.prisma.user.findMany({
+          where: { active: true },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        }),
+      ]);
+
+      return {
+        tasks,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        users,
+      };
+    }
+  );
+
+  // Update task status
+  app.put<{ Params: { id: string } }>(
+    "/tasks/:id",
+    { preHandler: authorize("panel:read") },
+    async (request) => {
+      const { id } = request.params;
+      const body = updateTaskSchema.parse(request.body);
+
+      // Fetch current task to detect changes
+      const current = await app.prisma.panelTask.findUnique({ where: { id } });
+      if (!current) return request.server.prisma; // will 404
+
+      const updateData: {
+        status?: string;
+        priority?: number;
+        title?: string;
+        description?: string | null;
+        assignedTo?: string | null;
+        completedBy?: string | null;
+        completedAt?: Date | null;
+      } = {};
+
+      if (body.status !== undefined) updateData.status = body.status;
+      if (body.priority !== undefined) updateData.priority = body.priority;
+      if (body.title !== undefined) updateData.title = body.title;
+      if (body.description !== undefined) updateData.description = body.description;
+      if (body.assignedTo !== undefined) updateData.assignedTo = body.assignedTo;
+
+      // Quando marcar como "done", registrar quem completou e quando
+      if (body.status === "done") {
+        updateData.completedBy = request.currentUser?.id ?? null;
+        updateData.completedAt = new Date();
+      }
+      // Se reabrir, limpar campos de conclusão
+      if (body.status && body.status !== "done") {
+        updateData.completedBy = null;
+        updateData.completedAt = null;
+      }
+
+      const task = await app.prisma.panelTask.update({
+        where: { id },
+        data: updateData,
+      });
+
+      // Resolve user name for assignedTo
+      const resolveUserName = async (userId: string | null | undefined) => {
+        if (!userId) return null;
+        const u = await app.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+        return u?.name ?? null;
+      };
+
+      // Granular activity logs
+      const statusLabels: Record<string, string> = { open: "Aberta", in_progress: "Em Andamento", done: "Concluida" };
+      const priorityLabels: Record<number, string> = { 1: "Urgente", 2: "Alta", 3: "Normal", 4: "Baixa" };
+
+      if (body.status !== undefined && body.status !== current.status) {
+        await createLog(app.prisma, request, {
+          action: "task.status_changed",
+          entity: "task",
+          entityId: id,
+          details: { from: statusLabels[current.status] ?? current.status, to: statusLabels[body.status] ?? body.status },
+        });
+      }
+
+      if (body.priority !== undefined && body.priority !== current.priority) {
+        await createLog(app.prisma, request, {
+          action: "task.priority_changed",
+          entity: "task",
+          entityId: id,
+          details: { from: priorityLabels[current.priority] ?? current.priority, to: priorityLabels[body.priority] ?? body.priority },
+        });
+      }
+
+      if (body.assignedTo !== undefined && body.assignedTo !== current.assignedTo) {
+        const assignedName = await resolveUserName(body.assignedTo);
+        const previousName = await resolveUserName(current.assignedTo);
+        await createLog(app.prisma, request, {
+          action: body.assignedTo ? "task.assigned" : "task.unassigned",
+          entity: "task",
+          entityId: id,
+          details: {
+            from: previousName,
+            to: assignedName,
+            assignedToId: body.assignedTo,
+          },
+        });
+      }
+
+      if (body.title !== undefined && body.title !== current.title) {
+        await createLog(app.prisma, request, {
+          action: "task.title_changed",
+          entity: "task",
+          entityId: id,
+          details: { from: current.title, to: body.title },
+        });
+      }
+
+      if (body.description !== undefined && body.description !== current.description) {
+        await createLog(app.prisma, request, {
+          action: "task.description_changed",
+          entity: "task",
+          entityId: id,
+          details: {},
+        });
+      }
+
+      return task;
+    }
+  );
+
+  // ==================
+  // TASK DETAIL (with comments)
+  // ==================
+
+  app.get<{ Params: { id: string } }>(
+    "/tasks/:id",
+    { preHandler: authorize("panel:read") },
+    async (request, reply) => {
+      const task = await app.prisma.panelTask.findUnique({
+        where: { id: request.params.id },
+        include: {
+          comments: {
+            orderBy: { createdAt: "asc" },
+          },
+        },
+      });
+      if (!task) return reply.status(404).send({ error: "Task nao encontrada" });
+
+      // Resolve user names for assignedTo and completedBy
+      const userIds = [task.assignedTo, task.completedBy].filter(
+        (id): id is string => !!id
+      );
+      const relatedUsers =
+        userIds.length > 0
+          ? await app.prisma.user.findMany({
+              where: { id: { in: userIds } },
+              select: { id: true, name: true },
+            })
+          : [];
+
+      // All active users for the assignment dropdown
+      const allUsers = await app.prisma.user.findMany({
+        where: { active: true },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      });
+
+      return {
+        ...task,
+        assignedUser: relatedUsers.find((u) => u.id === task.assignedTo) ?? null,
+        completedByUser: relatedUsers.find((u) => u.id === task.completedBy) ?? null,
+        allUsers,
+      };
+    }
+  );
+
+  // ==================
+  // TASK HISTORY (activity log)
+  // ==================
+
+  app.get<{ Params: { id: string } }>(
+    "/tasks/:id/history",
+    { preHandler: authorize("panel:read") },
+    async (request) => {
+      const { id } = request.params;
+
+      const logs = await app.prisma.log.findMany({
+        where: {
+          entity: "task",
+          entityId: id,
+        },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        include: {
+          user: { select: { id: true, name: true } },
+        },
+      });
+
+      return logs;
+    }
+  );
+
+  // ==================
+  // TASK COMMENTS
+  // ==================
+
+  app.post<{ Params: { id: string } }>(
+    "/tasks/:id/comments",
+    { preHandler: authorize("panel:read") },
+    async (request, reply) => {
+      const { id } = request.params;
+      const body = request.body as { message?: string };
+
+      if (!body.message?.trim()) {
+        return reply.status(400).send({ error: "Mensagem obrigatoria" });
+      }
+
+      // Get user name
+      const user = request.currentUser?.id
+        ? await app.prisma.user.findUnique({
+            where: { id: request.currentUser.id },
+            select: { name: true },
+          })
+        : null;
+
+      const comment = await app.prisma.taskComment.create({
+        data: {
+          taskId: id,
+          userId: request.currentUser?.id ?? null,
+          userName: user?.name ?? "Desconhecido",
+          message: body.message.trim(),
+        },
+      });
+
+      await createLog(app.prisma, request, {
+        action: "task.comment_added",
+        entity: "task",
+        entityId: id,
+        details: { commentId: comment.id, message: comment.message },
+      });
+
+      return reply.status(201).send(comment);
+    }
+  );
+
+  app.delete<{ Params: { id: string; commentId: string } }>(
+    "/tasks/:id/comments/:commentId",
+    { preHandler: authorize("panel:read") },
+    async (request) => {
+      const { commentId } = request.params;
+      await app.prisma.taskComment.delete({ where: { id: commentId } });
+      return { success: true };
+    }
+  );
+}

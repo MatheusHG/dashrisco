@@ -1,0 +1,13 @@
+{
+  "name": "jbd-alerts",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm:dev:api\" \"npm:dev:dashboard\"",
+    "dev:api": "cd api && npm run dev",
+    "dev:dashboard": "cd dashboard && npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

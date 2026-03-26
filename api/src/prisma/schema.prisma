@@ -1,0 +1,268 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// AUTH & RBAC
+// ============================================
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  roleId    String
+  role      Role     @relation(fields: [roleId], references: [id])
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  logs      Log[]
+
+  @@map("users")
+}
+
+model Role {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  description String?
+  permissions Permission[] @relation("RolePermissions")
+  users       User[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id     String @id @default(uuid())
+  action String @unique
+  roles  Role[] @relation("RolePermissions")
+
+  @@map("permissions")
+}
+
+// ============================================
+// LOGS
+// ============================================
+
+model Log {
+  id        String   @id @default(uuid())
+  userId    String?  @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String?
+  entityId  String?  @map("entity_id")
+  details   Json?
+  ip        String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([action])
+  @@map("logs")
+}
+
+// ============================================
+// ALERTAS DINÂMICOS
+// ============================================
+
+enum WebhookType {
+  CASINO_BET
+  CASINO_PRIZE
+  SPORT_BET
+  SPORT_PRIZE
+  LOGIN
+  DEPOSIT
+  WITHDRAWAL_CONFIRMATION
+}
+
+enum Operator {
+  EQUAL
+  NOT_EQUAL
+  GREATER
+  GREATER_EQUAL
+  LESS
+  LESS_EQUAL
+}
+
+enum LogicGate {
+  AND
+  OR
+}
+
+model AlertConfig {
+  id          String      @id @default(uuid())
+  name        String
+  description String?
+  webhookType WebhookType @map("webhook_type")
+  active      Boolean     @default(true)
+  createdBy   String      @map("created_by")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  // Publicação
+  publishPanel   Boolean @default(false) @map("publish_panel")
+  publishChat    Boolean @default(false) @map("publish_chat")
+  chatWebhookUrl String? @map("chat_webhook_url")
+
+  // Tarefas
+  createPanelTask   Boolean @default(false) @map("create_panel_task")
+  createClickupTask Boolean @default(false) @map("create_clickup_task")
+  clickupListId     String? @map("clickup_list_id")
+
+  // Campos e filtros
+  selectedFields Json          @map("selected_fields")
+  filters        AlertFilter[]
+  panelAlerts    PanelAlert[]
+
+  // ClickHouse query integration
+  queryEnabled       Boolean              @default(false) @map("query_enabled")
+  clickhouseQuery    String?              @map("clickhouse_query")
+  queryConditions    AlertQueryCondition[]
+
+  @@index([webhookType])
+  @@index([active])
+  @@map("alert_configs")
+}
+
+model AlertFilter {
+  id            String     @id @default(uuid())
+  alertConfigId String     @map("alert_config_id")
+  alertConfig   AlertConfig @relation(fields: [alertConfigId], references: [id], onDelete: Cascade)
+  field         String
+  operator      Operator
+  value         String
+  logicGate     LogicGate? @map("logic_gate")
+  order         Int
+
+  @@map("alert_filters")
+}
+
+model AlertQueryCondition {
+  id            String      @id @default(uuid())
+  alertConfigId String      @map("alert_config_id")
+  alertConfig   AlertConfig @relation(fields: [alertConfigId], references: [id], onDelete: Cascade)
+  field         String      // Column alias from SELECT result
+  operator      Operator
+  value         String
+  logicGate     LogicGate?  @map("logic_gate")
+  order         Int
+
+  @@index([alertConfigId])
+  @@map("alert_query_conditions")
+}
+
+// ============================================
+// PAINEL
+// ============================================
+
+model PanelAlert {
+  id            String       @id @default(uuid())
+  alertConfigId String?      @map("alert_config_id")
+  alertConfig   AlertConfig? @relation(fields: [alertConfigId], references: [id])
+  webhookType   String       @map("webhook_type")
+  title         String
+  message       String
+  data          Json
+  source        String       @default("alert") // "alert" | "group_lock"
+  createdAt     DateTime     @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([alertConfigId])
+  @@index([source])
+  @@map("panel_alerts")
+}
+
+model PanelTask {
+  id            String           @id @default(uuid())
+  alertConfigId String?          @map("alert_config_id")
+  title         String
+  description   String?
+  status        String           @default("open")
+  priority      Int              @default(3)
+  data          Json?
+  assignedTo    String?          @map("assigned_to")
+  createdBy     String?          @map("created_by")
+  completedBy   String?          @map("completed_by")
+  completedAt   DateTime?        @map("completed_at")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  comments      TaskComment[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([completedBy])
+  @@index([assignedTo])
+  @@map("panel_tasks")
+}
+
+model TaskComment {
+  id        String    @id @default(uuid())
+  taskId    String    @map("task_id")
+  task      PanelTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String?   @map("user_id")
+  userName  String    @map("user_name")
+  message   String
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([taskId])
+  @@index([createdAt])
+  @@map("task_comments")
+}
+
+// ============================================
+// GRUPOS DE BLOQUEIO
+// ============================================
+
+model LockGroup {
+  id             String            @id @default(uuid())
+  name           String
+  lockSeconds    Int               @map("lock_seconds") // fallback when no timeSlots match
+  active         Boolean           @default(true)
+  createdBy      String            @map("created_by")
+  notifyPanel    Boolean           @default(false) @map("notify_panel")
+  notifyChat     Boolean           @default(false) @map("notify_chat")
+  chatWebhookUrl String?           @map("chat_webhook_url")
+  // Trigger conditions
+  triggerTypes   Json              @default("[\"SPORT_BET\",\"CASINO_BET\"]") @map("trigger_types") // ex: ["SPORT_BET","CASINO_BET"]
+  triggerFilters Json              @default("[]") @map("trigger_filters") // ex: [{"field":"bet_value","operator":"GREATER","value":"100","logicGate":"AND"}]
+  // Time-based lock duration slots: [{"startHour":0,"endHour":6,"lockSeconds":240},{"startHour":6,"endHour":24,"lockSeconds":120}]
+  timeSlots      Json              @default("[]") @map("time_slots")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  members        LockGroupMember[]
+  events         LockGroupEvent[]
+
+  @@map("lock_groups")
+}
+
+model LockGroupEvent {
+  id        String   @id @default(uuid())
+  groupId   String   @map("group_id")
+  group     LockGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  action    String   // "locked" | "unlocked"
+  userId    String?  @map("user_id")
+  userName  String?  @map("user_name")
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([groupId])
+  @@index([createdAt])
+  @@map("lock_group_events")
+}
+
+model LockGroupMember {
+  id          String    @id @default(uuid())
+  groupId     String    @map("group_id")
+  group       LockGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  ngxUserId   String    @map("ngx_user_id")
+  ngxUsername String?   @map("ngx_username")
+  ngxName     String?   @map("ngx_name")
+  addedAt     DateTime  @default(now()) @map("added_at")
+
+  @@unique([groupId, ngxUserId])
+  @@map("lock_group_members")
+}
