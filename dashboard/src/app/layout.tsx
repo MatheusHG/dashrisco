@@ -6,6 +6,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "JBD Alerts Dashboard",
   description: "Central de Alertas e Monitoramento",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

@@ -103,11 +103,11 @@ async function main() {
   console.log(`Created viewer role: ${viewerRole.id}`);
 
   // Create default admin user
-  const hashedPassword = await bcrypt.hash("admin123", 10);
+  const hashedPassword = await bcrypt.hash("v065pokx", 10);
 
   const adminUser = await prisma.user.upsert({
     where: { email: "admin@jbdbrasil.com.br" },
-    update: {},
+    update: { password: hashedPassword },
     create: {
       name: "Administrador",
       email: "admin@jbdbrasil.com.br",
