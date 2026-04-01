@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
@@ -113,9 +114,9 @@ export function Sidebar() {
       {/* Logo + Toggle */}
       <div className="flex h-16 items-center border-b border-border px-3">
         {!collapsed && (
-          <h1 className="flex-1 pl-3 text-lg font-bold text-sidebar-primary truncate">
-            JBD Alerts
-          </h1>
+          <Link href="/" className="flex-1 pl-1">
+            <Image src="/logo-risco.png" alt="JBD Risco" width={120} height={40} className="h-9 w-auto object-contain" />
+          </Link>
         )}
         <Button
           variant="ghost"

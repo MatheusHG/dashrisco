@@ -16,7 +16,7 @@ import {
   PieChart, Pie, Cell, AreaChart, Area, Legend,
 } from "recharts";
 
-const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899", "#6366f1"];
+const COLORS = ["#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899", "#6366f1"];
 
 const webhookTypeLabels: Record<string, string> = {
   CASINO_BET: "Apostas Cassino", CASINO_PRIZE: "Premios Cassino",
@@ -189,7 +189,7 @@ export default function ReportsPage() {
 
   const pieData = resolutionStats ? [
     { name: "Abertas", value: resolutionStats.open, color: "#f59e0b" },
-    { name: "Em Andamento", value: resolutionStats.inProgress, color: "#3b82f6" },
+    { name: "Em Andamento", value: resolutionStats.inProgress, color: "#ef4444" },
     { name: "Concluidas", value: resolutionStats.done, color: "#10b981" },
   ].filter((d) => d.value > 0) : [];
 
@@ -287,10 +287,9 @@ export default function ReportsPage() {
 
           {/* ═══ Group Lock Stats ═══ */}
           {groupLockStats && groupLockStats.totalLocks > 0 && (
-            <div className="grid gap-4 sm:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-3">
               {[
                 { title: "Bloqueios", value: groupLockStats.totalLocks, icon: Lock, color: "text-red-500", bg: "bg-red-500/10" },
-                { title: "Desbloqueios", value: groupLockStats.totalUnlocks, icon: ShieldAlert, color: "text-green-500", bg: "bg-green-500/10" },
                 { title: "Tempo Medio Bloqueio", value: `${groupLockStats.avgLockSeconds}s`, icon: Clock, color: "text-amber-500", bg: "bg-amber-500/10" },
                 { title: "Grupos Ativos", value: groupLockStats.activeGroups, icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
               ].map((s) => (
@@ -324,15 +323,15 @@ export default function ReportsPage() {
                       <AreaChart data={alertsStats!.byDay}>
                         <defs>
                           <linearGradient id="colorAlerts" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                            <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
                         <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(d) => new Date(d + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} />
                         <YAxis tick={{ fontSize: 11 }} />
                         <Tooltip contentStyle={tooltipStyle} labelFormatter={(d) => new Date(d + "T00:00:00").toLocaleDateString("pt-BR")} />
-                        <Area type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} fill="url(#colorAlerts)" name="Alertas" />
+                        <Area type="monotone" dataKey="count" stroke="#ef4444" strokeWidth={2} fill="url(#colorAlerts)" name="Alertas" />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
@@ -357,7 +356,7 @@ export default function ReportsPage() {
                           {alertsByHour.map((entry, i) => {
                             const max = Math.max(...alertsByHour.map((h) => h.count));
                             const intensity = max > 0 ? entry.count / max : 0;
-                            const color = intensity > 0.7 ? "#ef4444" : intensity > 0.4 ? "#f59e0b" : "#3b82f6";
+                            const color = intensity > 0.7 ? "#ef4444" : intensity > 0.4 ? "#f59e0b" : "#ef4444";
                             return <Cell key={i} fill={color} fillOpacity={Math.max(0.3, intensity)} />;
                           })}
                         </Bar>
@@ -485,7 +484,7 @@ export default function ReportsPage() {
                       <YAxis tick={{ fontSize: 11 }} />
                       <Tooltip contentStyle={tooltipStyle} />
                       <Legend />
-                      <Bar dataKey="totalAlerts" fill="#3b82f6" name="Alertas" radius={[6, 6, 0, 0]} />
+                      <Bar dataKey="totalAlerts" fill="#ef4444" name="Alertas" radius={[6, 6, 0, 0]} />
                       <Bar dataKey="totalResolved" fill="#10b981" name="Resolvidos" radius={[6, 6, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>

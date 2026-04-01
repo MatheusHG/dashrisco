@@ -1,6 +1,9 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import jwt from "@fastify/jwt";
+import multipart from "@fastify/multipart";
+import fastifyStatic from "@fastify/static";
+import path from "path";
 import { PrismaClient } from "@prisma/client";
 
 import { authRoutes } from "./routes/auth";
@@ -13,6 +16,7 @@ import { groupRoutes } from "./routes/groups";
 import { panelRoutes } from "./routes/panel";
 import { reportRoutes } from "./routes/reports";
 import { clientRoutes } from "./routes/clients";
+import { configRoutes } from "./routes/configs";
 
 import { AlertEngine } from "./services/alertEngine";
 import { GroupLockEngine } from "./services/groupLockEngine";
@@ -46,6 +50,15 @@ async function start() {
   await app.register(jwt, {
     secret: process.env.JWT_SECRET || "change-me-in-production",
     sign: { expiresIn: "15m" },
+  });
+
+  await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB
+
+  const uploadsDir = path.join(__dirname, "..", "uploads");
+  await app.register(fastifyStatic, {
+    root: uploadsDir,
+    prefix: "/uploads/",
+    decorateReply: false,
   });
 
   // Raw body parser (for Legitimuz signature verification)
@@ -91,6 +104,7 @@ async function start() {
   await app.register(panelRoutes, { prefix: "/panel" });
   await app.register(reportRoutes, { prefix: "/reports" });
   await app.register(clientRoutes, { prefix: "/clients" });
+  await app.register(configRoutes, { prefix: "/configs" });
 
   // Health check
   app.get("/health", async () => ({ status: "ok" }));

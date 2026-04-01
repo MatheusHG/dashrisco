@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import Link from "next/link";
 
-const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899"];
+const COLORS = ["#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899"];
 const tooltipStyle = { borderRadius: "12px", border: "1px solid var(--color-border)", backgroundColor: "var(--color-card)", color: "var(--color-foreground)" };
 
 const webhookTypeLabels: Record<string, string> = {
@@ -177,15 +177,15 @@ export default function DashboardPage() {
                   <AreaChart data={s.alertsByDay}>
                     <defs>
                       <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
                     <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(d) => new Date(d + "T00:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} />
                     <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
                     <Tooltip contentStyle={tooltipStyle} labelFormatter={(d) => new Date(d + "T00:00:00").toLocaleDateString("pt-BR")} />
-                    <Area type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} fill="url(#grad)" name="Alertas" />
+                    <Area type="monotone" dataKey="count" stroke="#ef4444" strokeWidth={2} fill="url(#grad)" name="Alertas" />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Search, Users, Loader2 } from "lucide-react";
+import { Plus, Search, Users, Loader2, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 interface User {
@@ -130,11 +130,29 @@ export default function UsersPage() {
                       {new Date(user.createdAt).toLocaleDateString("pt-BR")}
                     </td>
                     <td className="px-6 py-4">
-                      <Link href={`/users/${user.id}/edit`}>
-                        <Button variant="outline" size="sm" className="rounded-lg transition-all duration-200 hover:shadow-sm">
-                          Editar
-                        </Button>
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link href={`/users/${user.id}/edit`}>
+                          <Button variant="outline" size="sm" className="rounded-lg transition-all duration-200 hover:shadow-sm">
+                            Editar
+                          </Button>
+                        </Link>
+                        {user.active && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="rounded-lg"
+                            onClick={async () => {
+                              if (!confirm(`Desativar usuario "${user.name}"?`)) return;
+                              try {
+                                await api.fetch(`/users/${user.id}`, { method: "DELETE" });
+                                fetchUsers();
+                              } catch (err) { console.error(err); }
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

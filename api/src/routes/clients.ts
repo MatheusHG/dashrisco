@@ -1,26 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { authorize } from "../middlewares/auth";
 import { createClient } from "@clickhouse/client";
-import axios from "axios";
-
-function getSbClient() {
-  return axios.create({
-    baseURL: process.env.SB_API_BASE_URL,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.SB_API_TOKEN}`,
-      Referer: process.env.SB_API_REFERER || "",
-    },
-  });
-}
-
-async function getUser(userId: string) {
-  const sb = getSbClient();
-  const { data } = await sb.get("/user/find", {
-    params: { query: "ID", field: userId },
-  });
-  return data as Record<string, any>;
-}
+import { getUser } from "../services/sbClient";
 
 function getClickHouseClient() {
   return createClient({
@@ -47,7 +28,7 @@ export async function clientRoutes(app: FastifyInstance) {
       // 1) SB API
       let profile: Record<string, unknown> | null = null;
       try {
-        const user = await getUser(userId);
+        const user = await getUser(app.prisma, userId);
         profile = {
           id: user.id,
           name: user.name ?? user.username ?? "Desconhecido",

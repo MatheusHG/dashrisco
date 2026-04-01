@@ -10,7 +10,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Pencil, Plus, Database, Play, Loader2, X, Bell, ListTodo, Zap, CheckCircle,
-  MessageSquare, ArrowLeft, ArrowRight, Filter, Columns, FileText, Check,
+  MessageSquare, ArrowLeft, ArrowRight, Filter, Columns, FileText, Check, Eye,
+  AlertTriangle,
 } from "lucide-react";
 
 const WEBHOOK_TYPES = [
@@ -61,6 +62,7 @@ export default function NewAlertPage() {
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [mode, setMode] = useState<"ALERT" | "WATCH">("ALERT");
   const [publishPanel, setPublishPanel] = useState(false);
   const [publishChat, setPublishChat] = useState(false);
   const [chatWebhookUrl, setChatWebhookUrl] = useState("");
@@ -105,7 +107,7 @@ export default function NewAlertPage() {
       await api.fetch("/alerts", {
         method: "POST",
         body: JSON.stringify({
-          name, description: description || undefined, webhookType, publishPanel, publishChat,
+          name, description: description || undefined, mode, webhookType, publishPanel, publishChat,
           chatWebhookUrl: publishChat ? chatWebhookUrl : null, createPanelTask, createClickupTask,
           clickupListId: createClickupTask ? clickupListId : null, selectedFields,
           filters: filters.map((f, i) => ({ field: f.field, operator: f.operator, value: f.value, logicGate: i < filters.length - 1 ? f.logicGate || "AND" : null, order: i })),
@@ -181,6 +183,27 @@ export default function NewAlertPage() {
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">Descricao (opcional)</Label>
                 <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descreva o objetivo deste alerta" className="h-11 rounded-xl" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Modo do Alerta</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => setMode("ALERT")}
+                    className={`flex items-center gap-3 rounded-xl border p-4 text-left transition-all ${mode === "ALERT" ? "border-red-500 bg-red-500/10 ring-1 ring-red-500/30" : "border-border/50 hover:bg-muted/50"}`}>
+                    <AlertTriangle className={`h-5 w-5 ${mode === "ALERT" ? "text-red-500" : "text-muted-foreground"}`} />
+                    <div>
+                      <p className={`text-sm ${mode === "ALERT" ? "font-semibold text-foreground" : "text-foreground"}`}>Alerta</p>
+                      <p className="text-[11px] text-muted-foreground">Notifica, toca som, envia pro chat</p>
+                    </div>
+                  </button>
+                  <button onClick={() => setMode("WATCH")}
+                    className={`flex items-center gap-3 rounded-xl border p-4 text-left transition-all ${mode === "WATCH" ? "border-blue-500 bg-blue-500/10 ring-1 ring-blue-500/30" : "border-border/50 hover:bg-muted/50"}`}>
+                    <Eye className={`h-5 w-5 ${mode === "WATCH" ? "text-blue-500" : "text-muted-foreground"}`} />
+                    <div>
+                      <p className={`text-sm ${mode === "WATCH" ? "font-semibold text-foreground" : "text-foreground"}`}>Acompanhamento</p>
+                      <p className="text-[11px] text-muted-foreground">Apenas registra, sem notificar</p>
+                    </div>
+                  </button>
+                </div>
               </div>
               <Nav next={2} nextDisabled={!canNext(1)} />
             </CardContent>
@@ -451,6 +474,7 @@ export default function NewAlertPage() {
               <div className="space-y-4">
                 {[
                   { label: "Nome", value: name, sub: description },
+                  { label: "Modo", value: mode === "ALERT" ? "Alerta" : "Acompanhamento" },
                   { label: "Webhook", value: WEBHOOK_TYPES.find((t) => t.value === webhookType)?.label },
                 ].map((r) => (
                   <div key={r.label} className="flex items-start justify-between rounded-xl bg-muted/30 p-3">
@@ -503,6 +527,7 @@ export default function NewAlertPage() {
 
               {[
                 { label: "Nome", value: name || "—", step: 1 },
+                { label: "Modo", value: mode === "ALERT" ? "Alerta" : "Acompanhamento", step: 1 },
                 { label: "Webhook", value: WEBHOOK_TYPES.find((t) => t.value === webhookType)?.label || "—", step: 4 },
               ].map((r) => (
                 <div key={r.label} className="flex items-start justify-between group cursor-pointer rounded-lg p-2 -mx-2 hover:bg-muted" onClick={() => setStep(r.step)}>

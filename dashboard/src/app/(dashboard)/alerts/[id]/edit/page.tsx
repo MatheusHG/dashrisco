@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Pencil } from "lucide-react";
+import { ArrowLeft, Pencil, AlertTriangle, Eye } from "lucide-react";
 
 const WEBHOOK_TYPES = [
   { value: "CASINO_BET", label: "Apostas Cassino" },
@@ -43,6 +43,7 @@ interface AlertConfig {
   id: string;
   name: string;
   description: string | null;
+  mode: "ALERT" | "WATCH";
   webhookType: string;
   active: boolean;
   publishPanel: boolean;
@@ -73,6 +74,7 @@ export default function EditAlertPage() {
   // Form state
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [mode, setMode] = useState<"ALERT" | "WATCH">("ALERT");
   const [webhookType, setWebhookType] = useState("");
   const [publishPanel, setPublishPanel] = useState(false);
   const [publishChat, setPublishChat] = useState(false);
@@ -90,6 +92,7 @@ export default function EditAlertPage() {
       const data = await api.fetch<AlertConfig>(`/alerts/${alertId}`);
       setName(data.name);
       setDescription(data.description || "");
+      setMode(data.mode || "ALERT");
       setWebhookType(data.webhookType);
       setPublishPanel(data.publishPanel);
       setPublishChat(data.publishChat);
@@ -170,6 +173,7 @@ export default function EditAlertPage() {
         body: JSON.stringify({
           name,
           description: description || undefined,
+          mode,
           webhookType,
           publishPanel,
           publishChat,
@@ -236,6 +240,33 @@ export default function EditAlertPage() {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Descricao do alerta"
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Modo */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Modo do Alerta</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => setMode("ALERT")}
+              className={`flex items-center gap-3 rounded-lg border p-4 text-left transition-all ${mode === "ALERT" ? "border-red-500 bg-red-500/10 ring-1 ring-red-500/30" : "border-border/50 hover:bg-muted/50"}`}>
+              <AlertTriangle className={`h-5 w-5 ${mode === "ALERT" ? "text-red-500" : "text-muted-foreground"}`} />
+              <div>
+                <p className={`text-sm ${mode === "ALERT" ? "font-semibold" : ""}`}>Alerta</p>
+                <p className="text-xs text-muted-foreground">Notifica, toca som, envia pro chat</p>
+              </div>
+            </button>
+            <button onClick={() => setMode("WATCH")}
+              className={`flex items-center gap-3 rounded-lg border p-4 text-left transition-all ${mode === "WATCH" ? "border-blue-500 bg-blue-500/10 ring-1 ring-blue-500/30" : "border-border/50 hover:bg-muted/50"}`}>
+              <Eye className={`h-5 w-5 ${mode === "WATCH" ? "text-blue-500" : "text-muted-foreground"}`} />
+              <div>
+                <p className={`text-sm ${mode === "WATCH" ? "font-semibold" : ""}`}>Acompanhamento</p>
+                <p className="text-xs text-muted-foreground">Apenas registra, sem notificar</p>
+              </div>
+            </button>
           </div>
         </CardContent>
       </Card>

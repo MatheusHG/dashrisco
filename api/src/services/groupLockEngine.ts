@@ -1,16 +1,7 @@
 import { PrismaClient, Prisma } from "@prisma/client";
 import axios from "axios";
 import { eventBus } from "./eventBus";
-
-interface UserLocks {
-  bet: boolean;
-  bonus_bet: boolean;
-  casino_bet: boolean;
-  deposit: boolean;
-  withdraw: boolean;
-  esport_bet: boolean;
-  [key: string]: boolean;
-}
+import { getUser, updateUserLocks, UserLocks, FULL_LOCK } from "./sbClient";
 
 interface TriggerFilter {
   field: string;
@@ -61,38 +52,6 @@ interface ActiveSession {
   unlockAt: Date;
 }
 
-function getSbClient() {
-  return axios.create({
-    baseURL: process.env.SB_API_BASE_URL,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.SB_API_TOKEN}`,
-      Referer: process.env.SB_API_REFERER || "",
-    },
-  });
-}
-
-async function getUser(userId: string) {
-  const sb = getSbClient();
-  const { data } = await sb.get("/user/find", {
-    params: { query: "ID", field: userId },
-  });
-  return data as { id: string; locks: UserLocks };
-}
-
-async function updateUserLocks(userId: string, locks: UserLocks) {
-  const sb = getSbClient();
-  await sb.put(`/user/${userId}/edit-client`, { locks });
-}
-
-const FULL_LOCK: UserLocks = {
-  bet: true,
-  bonus_bet: true,
-  casino_bet: true,
-  deposit: true,
-  withdraw: true,
-  esport_bet: true,
-};
 
 /**
  * Motor de bloqueio automático de grupos.
@@ -275,9 +234,9 @@ export class GroupLockEngine {
     // 1) Capturar snapshot e aplicar lock em cada membro
     for (const member of group.members) {
       try {
-        const user = await getUser(member.ngxUserId);
+        const user = await getUser(this.prisma, member.ngxUserId);
         snapshot.set(member.ngxUserId, { ...user.locks });
-        await updateUserLocks(member.ngxUserId, {
+        await updateUserLocks(this.prisma, member.ngxUserId, {
           ...user.locks,
           ...FULL_LOCK,
         });
@@ -388,7 +347,7 @@ export class GroupLockEngine {
     // Restaurar locks originais
     for (const [userId, originalLocks] of session.snapshot) {
       try {
-        await updateUserLocks(userId, originalLocks);
+        await updateUserLocks(this.prisma, userId, originalLocks);
         restoredUsers.push(userId);
       } catch (err: any) {
         failedUsers.push(userId);

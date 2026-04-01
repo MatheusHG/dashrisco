@@ -68,6 +68,27 @@ export async function userRoutes(app: FastifyInstance) {
     }
   );
 
+  // Get single user
+  app.get<{ Params: { id: string } }>(
+    "/:id",
+    { preHandler: authorize("users:manage") },
+    async (request, reply) => {
+      const user = await app.prisma.user.findUnique({
+        where: { id: request.params.id },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          active: true,
+          createdAt: true,
+          role: { select: { id: true, name: true } },
+        },
+      });
+      if (!user) return reply.status(404).send({ error: "Usuario nao encontrado" });
+      return user;
+    }
+  );
+
   // Create user
   app.post(
     "/",

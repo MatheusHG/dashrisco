@@ -19,6 +19,7 @@ import {
   Clock,
   ChevronDown,
   ChevronUp,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -131,6 +132,16 @@ export default function AlertDetailPage() {
     fetchData();
   };
 
+  const deleteAlert = async () => {
+    if (!confirm("Tem certeza que deseja excluir este alerta? Esta acao nao pode ser desfeita.")) return;
+    try {
+      await api.fetch(`/alerts/${alertId}`, { method: "DELETE" });
+      router.push("/alerts");
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   if (loading) return <p className="text-muted-foreground">Carregando...</p>;
   if (!alert) return <p className="text-destructive">Alerta nao encontrado</p>;
 
@@ -183,6 +194,13 @@ export default function AlertDetailPage() {
           >
             <Power className="h-4 w-4" />
             {alert.active ? "Desativar" : "Ativar"}
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={deleteAlert}
+          >
+            <Trash2 className="h-4 w-4" /> Excluir
           </Button>
         </div>
       </div>

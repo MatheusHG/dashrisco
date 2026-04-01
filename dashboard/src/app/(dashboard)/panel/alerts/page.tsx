@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Filter, X, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
+import { Filter, X, ChevronDown, ChevronUp, AlertTriangle, Eye } from "lucide-react";
 
 const WEBHOOK_TYPES = [
   { value: "", label: "Todos" },
@@ -85,6 +85,7 @@ interface PanelAlertItem {
   title: string;
   message: string;
   data: Record<string, unknown>;
+  mode: "ALERT" | "WATCH";
   createdAt: string;
   alertConfig: { id: string; name: string } | null;
 }
@@ -114,8 +115,9 @@ export default function PanelAlertsPage() {
   const [endDate, setEndDate] = useState("");
   const [webhookType, setWebhookType] = useState("");
   const [alertConfigId, setAlertConfigId] = useState("");
+  const [modeFilter, setModeFilter] = useState("");
 
-  const hasFilters = startDate || endDate || webhookType || alertConfigId;
+  const hasFilters = startDate || endDate || webhookType || alertConfigId || modeFilter;
 
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
@@ -128,6 +130,7 @@ export default function PanelAlertsPage() {
       if (endDate) params.set("endDate", endDate);
       if (webhookType) params.set("webhookType", webhookType);
       if (alertConfigId) params.set("alertConfigId", alertConfigId);
+      if (modeFilter) params.set("mode", modeFilter);
 
       const data = await api.fetch<{
         alerts: PanelAlertItem[];
@@ -140,7 +143,7 @@ export default function PanelAlertsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, startDate, endDate, webhookType, alertConfigId]);
+  }, [page, startDate, endDate, webhookType, alertConfigId, modeFilter]);
 
   useEffect(() => {
     fetchAlerts();
@@ -159,6 +162,7 @@ export default function PanelAlertsPage() {
     setEndDate("");
     setWebhookType("");
     setAlertConfigId("");
+    setModeFilter("");
     setPage(1);
   };
 
@@ -243,6 +247,21 @@ export default function PanelAlertsPage() {
               </select>
             </div>
             <div className="space-y-1">
+              <Label className="text-xs">Modo</Label>
+              <select
+                className="flex h-8 rounded-md border border-input bg-transparent px-3 text-sm text-foreground"
+                value={modeFilter}
+                onChange={(e) => {
+                  setModeFilter(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="">Todos</option>
+                <option value="ALERT">Alertas</option>
+                <option value="WATCH">Acompanhamento</option>
+              </select>
+            </div>
+            <div className="space-y-1">
               <Label className="text-xs">Alerta</Label>
               <select
                 className="flex h-8 rounded-md border border-input bg-transparent px-3 text-sm text-foreground"
@@ -304,6 +323,15 @@ export default function PanelAlertsPage() {
                         <Badge variant="outline" className="text-[11px]">
                           {alert.alertConfig?.name ?? "Config removida"}
                         </Badge>
+                        {alert.mode === "WATCH" ? (
+                          <Badge className="text-[10px] border-0 bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-400 gap-1">
+                            <Eye className="h-3 w-3" />Acompanhamento
+                          </Badge>
+                        ) : (
+                          <Badge className="text-[10px] border-0 bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-400 gap-1">
+                            <AlertTriangle className="h-3 w-3" />Alerta
+                          </Badge>
+                        )}
                         <span className="text-xs text-muted-foreground">
                           {new Date(alert.createdAt).toLocaleString("pt-BR")}
                         </span>

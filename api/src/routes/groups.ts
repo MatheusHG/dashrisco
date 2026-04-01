@@ -3,51 +3,7 @@ import { z } from "zod";
 import { authorize } from "../middlewares/auth";
 import { createLog } from "../middlewares/logger";
 import { createClient } from "@clickhouse/client";
-import axios from "axios";
-
-// SB API client for locking/unlocking users
-function getSbClient() {
-  return axios.create({
-    baseURL: process.env.SB_API_BASE_URL,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.SB_API_TOKEN}`,
-      Referer: process.env.SB_API_REFERER || "",
-    },
-  });
-}
-
-interface UserLocks {
-  bet: boolean;
-  bonus_bet: boolean;
-  casino_bet: boolean;
-  deposit: boolean;
-  withdraw: boolean;
-  esport_bet: boolean;
-  [key: string]: boolean;
-}
-
-async function getUser(userId: string) {
-  const sb = getSbClient();
-  const { data } = await sb.get("/user/find", {
-    params: { query: "ID", field: userId },
-  });
-  return data as { id: string; locks: UserLocks };
-}
-
-async function updateUserLocks(userId: string, locks: UserLocks) {
-  const sb = getSbClient();
-  await sb.put(`/user/${userId}/edit-client`, { locks });
-}
-
-const FULL_LOCK: UserLocks = {
-  bet: true,
-  bonus_bet: true,
-  casino_bet: true,
-  deposit: true,
-  withdraw: true,
-  esport_bet: true,
-};
+import { getUser, updateUserLocks, FULL_LOCK, UserLocks } from "../services/sbClient";
 
 const timeSlotSchema = z.object({
   startHour: z.number().int().min(0).max(23),
@@ -374,8 +330,8 @@ export async function groupRoutes(app: FastifyInstance) {
       // Lock each member via SB API
       for (const member of group.members) {
         try {
-          const user = await getUser(member.ngxUserId);
-          await updateUserLocks(member.ngxUserId, {
+          const user = await getUser(app.prisma, member.ngxUserId);
+          await updateUserLocks(app.prisma, member.ngxUserId, {
             ...user.locks,
             ...FULL_LOCK,
           });
@@ -447,8 +403,8 @@ export async function groupRoutes(app: FastifyInstance) {
       // Unlock each member via SB API (set all locks to false)
       for (const member of group.members) {
         try {
-          const user = await getUser(member.ngxUserId);
-          await updateUserLocks(member.ngxUserId, {
+          const user = await getUser(app.prisma, member.ngxUserId);
+          await updateUserLocks(app.prisma, member.ngxUserId, {
             ...user.locks,
             bet: false,
             bonus_bet: false,

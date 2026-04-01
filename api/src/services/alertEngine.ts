@@ -220,20 +220,26 @@ export class AlertEngine {
     const title = `Alerta: ${config.name}`;
     const message = this.formatMessage(config, selectedData, data._queryResult as Record<string, string> | undefined);
 
+    const isWatch = config.mode === "WATCH";
+
     const promises: Promise<void>[] = [];
 
-    promises.push(this.createPanelAlert(config, title, message, data));
+    // Sempre cria o registro no banco (para histórico)
+    promises.push(this.createPanelAlert(config, title, message, data, isWatch));
 
-    if (config.publishChat && config.chatWebhookUrl) {
-      promises.push(this.sendToGoogleChat(config.chatWebhookUrl, title, message));
-    }
+    // WATCH mode: apenas registra, sem notificar
+    if (!isWatch) {
+      if (config.publishChat && config.chatWebhookUrl) {
+        promises.push(this.sendToGoogleChat(config.chatWebhookUrl, title, message));
+      }
 
-    if (config.createPanelTask) {
-      promises.push(this.createPanelTask(config, title, message, data));
-    }
+      if (config.createPanelTask) {
+        promises.push(this.createPanelTask(config, title, message, data));
+      }
 
-    if (config.createClickupTask && config.clickupListId) {
-      promises.push(this.createClickupTask(config.clickupListId, title, message));
+      if (config.createClickupTask && config.clickupListId) {
+        promises.push(this.createClickupTask(config.clickupListId, title, message));
+      }
     }
 
     await Promise.allSettled(promises);
@@ -291,7 +297,8 @@ export class AlertEngine {
     config: AlertConfig,
     title: string,
     message: string,
-    data: Record<string, unknown>
+    data: Record<string, unknown>,
+    isWatch: boolean = false
   ): Promise<void> {
     const alert = await this.prisma.panelAlert.create({
       data: {
@@ -300,13 +307,17 @@ export class AlertEngine {
         title,
         message,
         data: data as Prisma.InputJsonValue,
+        mode: isWatch ? "WATCH" : "ALERT",
       },
       include: {
         alertConfig: { select: { name: true } },
       },
     });
 
-    eventBus.emit("panel-alert", alert);
+    // WATCH mode: não emite via SSE (sem notificação em tempo real)
+    if (!isWatch) {
+      eventBus.emit("panel-alert", alert);
+    }
   }
 
   private async sendToGoogleChat(

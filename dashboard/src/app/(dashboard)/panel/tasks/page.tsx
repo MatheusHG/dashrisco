@@ -31,6 +31,11 @@ import {
   Type,
   ChevronDown,
   Minus,
+  Paperclip,
+  Upload,
+  Image,
+  File,
+  Loader2,
 } from "lucide-react";
 
 // ═══════════════════════════════════════
@@ -56,8 +61,9 @@ const PRIORITY_STYLES: Record<number, { label: string; bg: string; text: string;
 };
 
 interface TaskComment { id: string; userId: string | null; userName: string; message: string; createdAt: string; }
+interface TaskAttachment { id: string; fileName: string; fileType: string; fileSize: number; filePath: string; createdAt: string; }
 interface PanelTaskItem { id: string; title: string; description: string | null; status: string; priority: number; data: Record<string, unknown> | null; assignedTo: string | null; completedBy: string | null; createdAt: string; updatedAt: string; _count?: { comments: number }; }
-interface TaskDetail extends PanelTaskItem { comments: TaskComment[]; assignedUser: { id: string; name: string } | null; completedByUser: { id: string; name: string } | null; allUsers: { id: string; name: string }[]; }
+interface TaskDetail extends PanelTaskItem { comments: TaskComment[]; attachments: TaskAttachment[]; assignedUser: { id: string; name: string } | null; completedByUser: { id: string; name: string } | null; allUsers: { id: string; name: string }[]; }
 interface HistoryEntry { id: string; action: string; details: Record<string, unknown> | null; createdAt: string; user: { id: string; name: string } | null; }
 interface UserOption { id: string; name: string; }
 
@@ -169,6 +175,10 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
   const [descDraft, setDescDraft] = useState("");
   const [showData, setShowData] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadFileName, setUploadFileName] = useState<string>("");
   const backdropRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -223,6 +233,44 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
     } catch (err) { console.error(err); }
   };
 
+  const uploadAttachment = async (file: globalThis.File) => {
+    setUploadFileName(file.name);
+    setUploadProgress(0);
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      // Upload (0-85%)
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002"}/panel/tasks/${taskId}/attachments`);
+        xhr.setRequestHeader("Authorization", `Bearer ${api.getAccessToken()}`);
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 85));
+        };
+        xhr.onload = () => {
+          setUploadProgress(92);
+          if (xhr.status >= 200 && xhr.status < 300) resolve(); else reject(new Error(`HTTP ${xhr.status}`));
+        };
+        xhr.onerror = () => reject(new Error("Upload failed"));
+        xhr.send(formData);
+      });
+      // Refresh (92-100%)
+      setUploadProgress(96);
+      await fetchTask();
+      setUploadProgress(100);
+    } catch (err) { console.error(err); }
+    finally { setUploadProgress(null); setUploadFileName(""); }
+  };
+
+  const deleteAttachment = async (attachmentId: string) => {
+    setDeletingAttachmentId(attachmentId);
+    try {
+      await api.fetch(`/panel/tasks/${taskId}/attachments/${attachmentId}`, { method: "DELETE" });
+      await fetchTask();
+    } catch (err) { console.error(err); }
+    finally { setDeletingAttachmentId(null); }
+  };
+
   const saveTitle = () => {
     if (titleDraft.trim() && titleDraft !== task?.title) updateField("title", titleDraft.trim());
     setEditingTitle(false);
@@ -240,7 +288,7 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
     </div>
   );
 
-  if (!task) { onClose(); return null; }
+  if (!task) return null;
 
   const timeline = buildTimeline(task.comments, history);
   const statusStyle = STATUS_STYLES[task.status] ?? STATUS_STYLES.open;
@@ -358,6 +406,126 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
                 )}
               </div>
             )}
+
+            {/* ── Attachments section */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <Paperclip className="h-3.5 w-3.5" />
+                  Anexos {(task.attachments ?? []).length > 0 && `(${(task.attachments ?? []).length})`}
+                </p>
+                <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${uploadProgress !== null ? "text-muted-foreground pointer-events-none" : "text-primary cursor-pointer hover:bg-primary/10"}`}>
+                  {uploadProgress !== null ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                  {uploadProgress !== null ? "Enviando..." : "Enviar"}
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadAttachment(f); e.target.value = ""; }}
+                  />
+                </label>
+              </div>
+
+              {uploadProgress !== null && (
+                <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
+                    <p className="text-xs text-foreground truncate flex-1">{uploadFileName}</p>
+                    <span className="text-xs font-semibold text-primary shrink-0">{uploadProgress}%</span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all duration-300 ease-out"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {(task.attachments ?? []).length === 0 && uploadProgress === null ? (
+                <label className="flex flex-col items-center justify-center gap-2 py-6 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors">
+                  <Upload className="h-5 w-5 text-muted-foreground" />
+                  <p className="text-xs text-muted-foreground">Arraste ou clique para enviar imagens e documentos</p>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadAttachment(f); e.target.value = ""; }}
+                  />
+                </label>
+              ) : (
+                <div className="space-y-3">
+                  {/* Image previews grid */}
+                  {(() => {
+                    const images = (task.attachments ?? []).filter((a) => a.fileType.startsWith("image/"));
+                    const files = (task.attachments ?? []).filter((a) => !a.fileType.startsWith("image/"));
+                    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
+                    return (
+                      <>
+                        {images.length > 0 && (
+                          <div className={`grid gap-2 ${images.length === 1 ? "grid-cols-1" : images.length === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+                            {images.map((att) => (
+                              <div key={att.id} className="relative group rounded-lg overflow-hidden border border-border bg-muted/30">
+                                <img
+                                  src={`${apiUrl}/uploads/${att.filePath}`}
+                                  alt={att.fileName}
+                                  className="w-full h-32 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                  onClick={() => setPreviewImage(`${apiUrl}/uploads/${att.filePath}`)}
+                                />
+                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                                  <p className="text-[10px] text-white truncate">{att.fileName}</p>
+                                </div>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); deleteAttachment(att.id); }}
+                                  disabled={deletingAttachmentId === att.id}
+                                  className={`absolute top-1.5 right-1.5 p-1 rounded-md bg-black/50 text-white hover:bg-destructive transition-all ${deletingAttachmentId === att.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                                >
+                                  {deletingAttachmentId === att.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {files.length > 0 && (
+                          <div className="space-y-1.5">
+                            {files.map((att) => (
+                              <div key={att.id} className="flex items-center gap-3 p-2.5 rounded-lg border border-border bg-muted/20 group hover:bg-muted/40 transition-colors">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                                  <File className="h-4 w-4 text-muted-foreground" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-medium truncate text-foreground">{att.fileName}</p>
+                                  <p className="text-[10px] text-muted-foreground">
+                                    {att.fileSize < 1024 ? `${att.fileSize} B` : att.fileSize < 1048576 ? `${Math.round(att.fileSize / 1024)} KB` : `${(att.fileSize / 1048576).toFixed(1)} MB`}
+                                    {" — "}{new Date(att.createdAt).toLocaleDateString("pt-BR")}
+                                  </p>
+                                </div>
+                                <a
+                                  href={`${apiUrl}/uploads/${att.filePath}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                                  title="Baixar"
+                                >
+                                  <ArrowRight className="h-3.5 w-3.5" />
+                                </a>
+                                <button
+                                  onClick={() => deleteAttachment(att.id)}
+                                  disabled={deletingAttachmentId === att.id}
+                                  className={`p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all ${deletingAttachmentId === att.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                                >
+                                  {deletingAttachmentId === att.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
 
             {/* ── Activity feed (unified timeline) */}
             <div>
@@ -552,6 +720,27 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
           </div>
         </div>
       </div>
+
+      {/* Image lightbox */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setPreviewImage(null)}
+        >
+          <button
+            className="absolute top-4 right-4 p-2 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors"
+            onClick={() => setPreviewImage(null)}
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <img
+            src={previewImage}
+            alt="Preview"
+            className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }

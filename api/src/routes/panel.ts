@@ -3,6 +3,9 @@ import { z } from "zod";
 import { authorize, authenticate } from "../middlewares/auth";
 import { createLog } from "../middlewares/logger";
 import { eventBus } from "../services/eventBus";
+import fs from "fs";
+import path from "path";
+import { randomUUID } from "crypto";
 
 const updateTaskSchema = z.object({
   status: z.enum(["open", "in_progress", "done"]).optional(),
@@ -98,12 +101,13 @@ export async function panelRoutes(app: FastifyInstance) {
         ? { createdAt: { gt: new Date(query.since) } }
         : {};
 
-      // Alerts with publishPanel=true OR system alerts (group_lock)
+      // Alerts with publishPanel=true and mode=ALERT, OR system alerts (group_lock)
+      // WATCH mode alerts are excluded from notifications
       const alerts = await app.prisma.panelAlert.findMany({
         where: {
           ...dateFilter,
           OR: [
-            { alertConfig: { publishPanel: true } },
+            { alertConfig: { publishPanel: true }, mode: "ALERT" },
             { source: "group_lock" },
           ],
         },
@@ -130,6 +134,7 @@ export async function panelRoutes(app: FastifyInstance) {
         alertConfigId?: string;
         startDate?: string;
         endDate?: string;
+        mode?: string;
       };
 
       const page = Math.max(1, Number(query.page) || 1);
@@ -139,6 +144,7 @@ export async function panelRoutes(app: FastifyInstance) {
       const where: Record<string, unknown> = {};
       if (query.webhookType) where.webhookType = query.webhookType;
       if (query.alertConfigId) where.alertConfigId = query.alertConfigId;
+      if (query.mode) where.mode = query.mode;
       if (query.startDate || query.endDate) {
         where.createdAt = {};
         if (query.startDate)
@@ -259,14 +265,16 @@ export async function panelRoutes(app: FastifyInstance) {
       if (body.assignedTo !== undefined) updateData.assignedTo = body.assignedTo;
 
       // Quando marcar como "done", registrar quem completou e quando
+      // Preserva o primeiro completedAt para SLA (reaberturas não afetam)
       if (body.status === "done") {
         updateData.completedBy = request.currentUser?.id ?? null;
-        updateData.completedAt = new Date();
+        if (!current.completedAt) {
+          updateData.completedAt = new Date();
+        }
       }
-      // Se reabrir, limpar campos de conclusão
+      // Se reabrir, limpa apenas completedBy (mantém completedAt original para SLA)
       if (body.status && body.status !== "done") {
         updateData.completedBy = null;
-        updateData.completedAt = null;
       }
 
       const task = await app.prisma.panelTask.update({
@@ -353,6 +361,9 @@ export async function panelRoutes(app: FastifyInstance) {
         include: {
           comments: {
             orderBy: { createdAt: "asc" },
+          },
+          attachments: {
+            orderBy: { createdAt: "desc" },
           },
         },
       });
@@ -461,6 +472,87 @@ export async function panelRoutes(app: FastifyInstance) {
     async (request) => {
       const { commentId } = request.params;
       await app.prisma.taskComment.delete({ where: { id: commentId } });
+      return { success: true };
+    }
+  );
+
+  // ==================
+  // TASK ATTACHMENTS
+  // ==================
+
+  const ALLOWED_TYPES = [
+    "image/jpeg", "image/png", "image/gif", "image/webp",
+    "application/pdf",
+    "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/plain", "text/csv",
+  ];
+
+  // Upload attachment
+  app.post<{ Params: { id: string } }>(
+    "/tasks/:id/attachments",
+    { preHandler: authorize("panel:read") },
+    async (request, reply) => {
+      const { id } = request.params;
+      const file = await request.file();
+      if (!file) return reply.status(400).send({ error: "Nenhum arquivo enviado" });
+
+      if (!ALLOWED_TYPES.includes(file.mimetype)) {
+        return reply.status(400).send({ error: "Tipo de arquivo nao permitido" });
+      }
+
+      const uploadsDir = path.join(__dirname, "..", "..", "uploads", "tasks");
+      fs.mkdirSync(uploadsDir, { recursive: true });
+
+      const ext = path.extname(file.filename);
+      const storedName = `${randomUUID()}${ext}`;
+      const filePath = path.join(uploadsDir, storedName);
+
+      const buffer = await file.toBuffer();
+      fs.writeFileSync(filePath, buffer);
+
+      const attachment = await app.prisma.taskAttachment.create({
+        data: {
+          taskId: id,
+          fileName: file.filename,
+          fileType: file.mimetype,
+          fileSize: buffer.length,
+          filePath: `tasks/${storedName}`,
+          uploadedBy: request.currentUser?.id ?? null,
+        },
+      });
+
+      return reply.status(201).send(attachment);
+    }
+  );
+
+  // List attachments
+  app.get<{ Params: { id: string } }>(
+    "/tasks/:id/attachments",
+    { preHandler: authorize("panel:read") },
+    async (request) => {
+      const attachments = await app.prisma.taskAttachment.findMany({
+        where: { taskId: request.params.id },
+        orderBy: { createdAt: "desc" },
+      });
+      return attachments;
+    }
+  );
+
+  // Delete attachment
+  app.delete<{ Params: { id: string; attachmentId: string } }>(
+    "/tasks/:id/attachments/:attachmentId",
+    { preHandler: authorize("panel:read") },
+    async (request, reply) => {
+      const { attachmentId } = request.params;
+      const attachment = await app.prisma.taskAttachment.findUnique({ where: { id: attachmentId } });
+      if (!attachment) return reply.status(404).send({ error: "Anexo nao encontrado" });
+
+      // Delete file from disk
+      const fullPath = path.join(__dirname, "..", "..", "uploads", attachment.filePath);
+      try { fs.unlinkSync(fullPath); } catch {}
+
+      await app.prisma.taskAttachment.delete({ where: { id: attachmentId } });
       return { success: true };
     }
   );

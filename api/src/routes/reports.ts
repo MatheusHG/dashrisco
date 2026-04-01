@@ -594,7 +594,6 @@ export async function reportRoutes(app: FastifyInstance) {
 
       return {
         totalLocks,
-        totalUnlocks,
         avgLockSeconds,
         activeGroups,
         byGroup: Array.from(byGroup.entries())

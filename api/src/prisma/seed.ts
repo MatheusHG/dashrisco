@@ -13,6 +13,7 @@ const PERMISSIONS = [
   "groups:unlock",
   "logs:read",
   "panel:read",
+  "settings:manage",
 ];
 
 async function main() {
@@ -117,6 +118,24 @@ async function main() {
   });
 
   console.log(`Created admin user: ${adminUser.email}`);
+
+  // Seed app configs (SB API)
+  const configs = [
+    { key: "SB_API_BASE_URL", value: "https://loterias-dashboard.ngx.bet", label: "URL base da API SB" },
+    { key: "SB_API_TOKEN", value: "f3430f80-1897-4f59-8555-7d188a9b25af", label: "Token de autenticação SB" },
+    { key: "SB_API_REFERER", value: "https://dashboard.marjosports.com.br/", label: "Referer da API SB" },
+  ];
+
+  for (const cfg of configs) {
+    await prisma.appConfig.upsert({
+      where: { key: cfg.key },
+      update: {},
+      create: cfg,
+    });
+  }
+
+  console.log(`Seeded ${configs.length} app configs`);
+
   console.log("\nSeed completed!");
   console.log("Default login: admin@jbdbrasil.com.br / v065pokx");
 }

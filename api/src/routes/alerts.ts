@@ -17,6 +17,7 @@ const queryConditionSchema = z.object({
 const createAlertSchema = z.object({
   name: z.string().min(2),
   description: z.string().optional(),
+  mode: z.enum(["ALERT", "WATCH"]).default("ALERT"),
   webhookType: z.enum([
     "CASINO_BET", "CASINO_PRIZE", "SPORT_BET", "SPORT_PRIZE",
     "LOGIN", "DEPOSIT", "WITHDRAWAL_CONFIRMATION",
@@ -58,7 +59,7 @@ export async function alertRoutes(app: FastifyInstance) {
     "/",
     { preHandler: authorize("alerts:read", "alerts:manage", "alerts:create") },
     async (request) => {
-      const query = request.query as { page?: string; limit?: string; webhookType?: string; active?: string };
+      const query = request.query as { page?: string; limit?: string; webhookType?: string; active?: string; mode?: string };
       const page = Math.max(1, Number(query.page) || 1);
       const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
       const skip = (page - 1) * limit;
@@ -66,6 +67,7 @@ export async function alertRoutes(app: FastifyInstance) {
       const where: Record<string, unknown> = {};
       if (query.webhookType) where.webhookType = query.webhookType;
       if (query.active !== undefined) where.active = query.active === "true";
+      if (query.mode) where.mode = query.mode;
 
       const [alerts, total] = await Promise.all([
         app.prisma.alertConfig.findMany({
@@ -113,6 +115,7 @@ export async function alertRoutes(app: FastifyInstance) {
         data: {
           name: body.name,
           description: body.description,
+          mode: body.mode,
           webhookType: body.webhookType,
           publishPanel: body.publishPanel,
           publishChat: body.publishChat,
@@ -175,6 +178,7 @@ export async function alertRoutes(app: FastifyInstance) {
         data: {
           ...(body.name !== undefined && { name: body.name }),
           ...(body.description !== undefined && { description: body.description }),
+          ...(body.mode !== undefined && { mode: body.mode }),
           ...(body.webhookType !== undefined && { webhookType: body.webhookType }),
           ...(body.publishPanel !== undefined && { publishPanel: body.publishPanel }),
           ...(body.publishChat !== undefined && { publishChat: body.publishChat }),
@@ -233,6 +237,31 @@ export async function alertRoutes(app: FastifyInstance) {
         entity: "alert", entityId: id,
       });
       return alert;
+    }
+  );
+
+  // Delete alert config
+  app.delete<{ Params: { id: string } }>(
+    "/:id",
+    { preHandler: authorize("alerts:manage") },
+    async (request, reply) => {
+      const { id } = request.params;
+
+      // Delete related panel alerts first (set alertConfigId to null)
+      await app.prisma.panelAlert.updateMany({
+        where: { alertConfigId: id },
+        data: { alertConfigId: null },
+      });
+
+      await app.prisma.alertConfig.delete({ where: { id } });
+
+      await createLog(app.prisma, request, {
+        action: "alert.deleted",
+        entity: "alert",
+        entityId: id,
+      });
+
+      return { success: true };
     }
   );
 

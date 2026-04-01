@@ -93,11 +93,17 @@ enum LogicGate {
   OR
 }
 
+enum AlertMode {
+  ALERT
+  WATCH
+}
+
 model AlertConfig {
   id          String      @id @default(uuid())
   name        String
   description String?
   webhookType WebhookType @map("webhook_type")
+  mode        AlertMode   @default(ALERT)
   active      Boolean     @default(true)
   createdBy   String      @map("created_by")
   createdAt   DateTime    @default(now()) @map("created_at")
@@ -167,6 +173,7 @@ model PanelAlert {
   title         String
   message       String
   data          Json
+  mode          AlertMode    @default(ALERT)
   source        String       @default("alert") // "alert" | "group_lock"
   createdAt     DateTime     @default(now()) @map("created_at")
 
@@ -191,12 +198,28 @@ model PanelTask {
   createdAt     DateTime         @default(now()) @map("created_at")
   updatedAt     DateTime         @updatedAt @map("updated_at")
   comments      TaskComment[]
+  attachments   TaskAttachment[]
 
   @@index([status])
   @@index([createdAt])
   @@index([completedBy])
   @@index([assignedTo])
   @@map("panel_tasks")
+}
+
+model TaskAttachment {
+  id        String    @id @default(uuid())
+  taskId    String    @map("task_id")
+  task      PanelTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  fileName  String    @map("file_name")
+  fileType  String    @map("file_type")
+  fileSize  Int       @map("file_size")
+  filePath  String    @map("file_path")
+  uploadedBy String?  @map("uploaded_by")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([taskId])
+  @@map("task_attachments")
 }
 
 model TaskComment {
@@ -211,6 +234,19 @@ model TaskComment {
   @@index([taskId])
   @@index([createdAt])
   @@map("task_comments")
+}
+
+// ============================================
+// CONFIGURAÇÕES DA APLICAÇÃO
+// ============================================
+
+model AppConfig {
+  key       String   @id
+  value     String
+  label     String?
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("app_configs")
 }
 
 // ============================================

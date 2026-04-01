@@ -35,6 +35,8 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [popup, setPopup] = useState<Notification | null>(null);
+  const popupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Load read IDs from localStorage
@@ -46,6 +48,12 @@ export function NotificationBell() {
   }, []);
 
   const prevCountRef = useRef<number>(0);
+
+  const showPopup = useCallback((notification: Notification) => {
+    if (popupTimerRef.current) clearTimeout(popupTimerRef.current);
+    setPopup(notification);
+    popupTimerRef.current = setTimeout(() => setPopup(null), 6000);
+  }, []);
 
   const playNotificationSound = useCallback(() => {
     try {
@@ -114,7 +122,8 @@ export function NotificationBell() {
             return next;
           });
 
-          // Play sound
+          // Show popup and play sound
+          showPopup(data);
           playNotificationSound();
         } catch {
           // ignore parse errors
@@ -135,7 +144,7 @@ export function NotificationBell() {
       eventSource?.close();
       if (fallbackInterval) clearInterval(fallbackInterval);
     };
-  }, [fetchNotifications, playNotificationSound]);
+  }, [fetchNotifications, playNotificationSound, showPopup]);
 
   // Close on click outside
   useEffect(() => {
@@ -249,6 +258,34 @@ export function NotificationBell() {
 
   return (
     <div className="relative" ref={panelRef}>
+      {/* Alert Popup Toast */}
+      {popup && (
+        <div
+          className="fixed top-4 right-4 z-[100] w-96 animate-in slide-in-from-top-2 fade-in duration-300 rounded-xl border border-border bg-card shadow-2xl overflow-hidden cursor-pointer"
+          onClick={() => { setOpen(true); setPopup(null); }}
+        >
+          <div className="h-1 bg-primary" />
+          <div className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                <Bell className="h-4 w-4 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground">{popup.alertConfig?.name ?? "Alerta"}</p>
+                <p className="text-sm text-muted-foreground mt-0.5">{formatMessage(popup)}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">Agora</p>
+              </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); setPopup(null); }}
+                className="shrink-0 p-1 rounded-md hover:bg-muted text-muted-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Button
         variant="ghost"
         size="icon"
