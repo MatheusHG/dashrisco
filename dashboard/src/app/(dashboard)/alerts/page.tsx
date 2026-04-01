@@ -56,8 +56,10 @@ interface AlertConfig {
   _count: { panelAlerts: number };
 }
 
-const operatorLabel = (op: string) =>
-  op === "EQUAL" ? "=" : op === "GREATER" ? ">" : "<";
+const operatorLabel = (op: string) => {
+  const m: Record<string, string> = { EQUAL: "=", NOT_EQUAL: "!=", GREATER: ">", GREATER_EQUAL: ">=", LESS: "<", LESS_EQUAL: "<=" };
+  return m[op] ?? op;
+};
 
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<AlertConfig[]>([]);
