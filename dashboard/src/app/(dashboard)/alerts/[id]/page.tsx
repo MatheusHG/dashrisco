@@ -38,8 +38,11 @@ const typeColors: Record<string, string> = {
 
 const operatorLabels: Record<string, string> = {
   EQUAL: "=",
+  NOT_EQUAL: "!=",
   GREATER: ">",
+  GREATER_EQUAL: ">=",
   LESS: "<",
+  LESS_EQUAL: "<=",
 };
 
 interface AlertFilter {
