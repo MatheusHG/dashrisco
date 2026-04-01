@@ -264,6 +264,18 @@ async function start() {
 
   // ── Webhook routes (antigo gateway) ──────────────────────────────────
 
+  // Resolve o tipo de webhook considerando status do saque
+  function resolveWebhookType(body: any): string | undefined {
+    const eventType = body?.type;
+    let webhookType = typeToWebhookType[eventType];
+    // Diferenciar saque solicitado vs aprovado pelo status
+    if (eventType === "WITHDRAWAL_CONFIRMATION" || eventType === "WITHDRAWAL_REQUEST") {
+      const status = body?.withdraw_status;
+      webhookType = status === "PENDING" ? "WITHDRAWAL_REQUEST" : "WITHDRAWAL_CONFIRMATION";
+    }
+    return webhookType;
+  }
+
   // Endpoint genérico: roteia pelo campo "type" no body
   app.post("/webhook/ngx", async (req, reply) => {
     const body = req.body as any;
@@ -272,7 +284,7 @@ async function start() {
     req.log.info({ type: eventType }, "Webhook recebido");
 
     // Alertas dinâmicos (AlertEngine + GroupLockEngine)
-    const webhookType = typeToWebhookType[eventType];
+    const webhookType = resolveWebhookType(body);
     if (webhookType) {
       try {
         await alertEngine.processWebhook(webhookType, body);
@@ -304,7 +316,7 @@ async function start() {
       const eventType = event?.type;
 
       // Alertas dinâmicos
-      const webhookType = typeToWebhookType[eventType];
+      const webhookType = resolveWebhookType(event);
       if (webhookType) {
         try {
           await alertEngine.processWebhook(webhookType, event);
