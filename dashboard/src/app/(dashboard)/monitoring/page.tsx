@@ -313,7 +313,7 @@ export default function MonitoringPage() {
               {editing && (
                 <div className="widget-drag-handle flex items-center justify-between px-3 py-1 bg-muted/30 border-b border-border/30 cursor-grab active:cursor-grabbing">
                   <div className="flex items-center gap-1.5"><GripVertical className="h-3 w-3 text-muted-foreground" /><span className="text-[10px] font-medium text-muted-foreground">{WIDGET_CATALOG.find((w) => w.id === id)?.label}</span></div>
-                  <button onClick={() => toggleWidget(id)} className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>
+                  <button onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); toggleWidget(id); }} className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"><X className="h-3 w-3" /></button>
                 </div>
               )}
               <div className={editing ? "h-[calc(100%-28px)]" : "h-full"}>{renderWidget(id)}</div>
