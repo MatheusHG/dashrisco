@@ -118,6 +118,10 @@ model AlertConfig {
   createPanelTask   Boolean @default(false) @map("create_panel_task")
   createClickupTask Boolean @default(false) @map("create_clickup_task")
   clickupListId     String? @map("clickup_list_id")
+  checklist         Json    @default("[]") // ex: ["FTD do usuario","Verificar KYC"]
+
+  // Webhook externo (compartilhar alerta)
+  externalWebhookUrl String? @map("external_webhook_url")
 
   // Campos e filtros
   selectedFields Json          @map("selected_fields")
@@ -191,6 +195,7 @@ model PanelTask {
   status        String           @default("open")
   priority      Int              @default(3)
   data          Json?
+  checklist     Json             @default("[]") // ex: [{"label":"FTD","checked":false}]
   assignedTo    String?          @map("assigned_to")
   createdBy     String?          @map("created_by")
   completedBy   String?          @map("completed_by")
@@ -284,6 +289,7 @@ model LockGroupEvent {
   userId    String?  @map("user_id")
   userName  String?  @map("user_name")
   reason    String?
+  data      Json?    // dados da aposta que gerou o bloqueio
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([groupId])

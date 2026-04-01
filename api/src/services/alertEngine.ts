@@ -240,6 +240,10 @@ export class AlertEngine {
       if (config.createClickupTask && config.clickupListId) {
         promises.push(this.createClickupTask(config.clickupListId, title, message));
       }
+
+      if (config.externalWebhookUrl) {
+        promises.push(this.sendToExternalWebhook(config.externalWebhookUrl, config, title, message, data));
+      }
     }
 
     await Promise.allSettled(promises);
@@ -328,12 +332,35 @@ export class AlertEngine {
     await axios.post(webhookUrl, { text: `*${title}*\n${message}` });
   }
 
+  private async sendToExternalWebhook(
+    webhookUrl: string,
+    config: AlertConfig,
+    title: string,
+    message: string,
+    data: Record<string, unknown>
+  ): Promise<void> {
+    try {
+      await axios.post(webhookUrl, {
+        alert: title,
+        config: { id: config.id, name: config.name, webhookType: config.webhookType },
+        message,
+        data,
+        timestamp: new Date().toISOString(),
+      }, { timeout: 10000 });
+    } catch (err: any) {
+      console.error(`[AlertEngine] External webhook failed for ${config.id}: ${err.message}`);
+    }
+  }
+
   private async createPanelTask(
     config: AlertConfig,
     title: string,
     _message: string,
     data: Record<string, unknown>
   ): Promise<void> {
+    const checklistLabels = (config.checklist as string[]) || [];
+    const checklist = checklistLabels.map((label) => ({ label, checked: false }));
+
     await this.prisma.panelTask.create({
       data: {
         alertConfigId: config.id,
@@ -341,6 +368,7 @@ export class AlertEngine {
         description: `Alerta disparado: ${config.name}`,
         data: data as Prisma.InputJsonValue,
         priority: 2,
+        checklist,
       },
     });
   }

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { getFieldLabel } from "@/lib/field-labels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +57,7 @@ interface LockGroupEvent {
   userId: string | null;
   userName: string | null;
   reason: string | null;
+  data: Record<string, unknown> | null;
   createdAt: string;
 }
 
@@ -125,6 +127,7 @@ export default function GroupDetailPage() {
 
   const [group, setGroup] = useState<LockGroupDetail | null>(null);
   const [events, setEvents] = useState<LockGroupEvent[]>([]);
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Modals
@@ -897,42 +900,80 @@ export default function GroupDetailPage() {
                 <p className="text-xs text-muted-foreground">Nenhum evento</p>
               </div>
             ) : (
-              <div className="space-y-1.5 max-h-[340px] overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-[400px] overflow-y-auto pr-1">
                 {events.map((event) => {
                   const isLockEvent = event.action === "locked";
+                  const d = event.data;
+                  const betValue = d?.bet_value ?? d?.casino_bet_value;
+                  const betType = d?.type as string | undefined;
+                  const userName = (d?.user_name as string) || (d?.user_username as string);
+                  const isExpanded = expandedEventId === event.id;
+
                   return (
                     <div
                       key={event.id}
-                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted/30"
+                      className={`rounded-xl transition-colors ${isLockEvent && d ? "cursor-pointer" : ""} ${isExpanded ? "bg-muted/40" : "hover:bg-muted/30"}`}
+                      onClick={() => isLockEvent && d && setExpandedEventId(isExpanded ? null : event.id)}
                     >
-                      <div
-                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
-                          isLockEvent ? "bg-red-100 dark:bg-red-900/30" : "bg-green-100 dark:bg-green-900/30"
-                        }`}
-                      >
-                        {isLockEvent ? (
-                          <ShieldAlert className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
-                        ) : (
-                          <ShieldCheck className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-medium text-foreground truncate">
-                            {event.userName ?? "Sistema"}
-                          </span>
-                          <Badge
-                            variant={isLockEvent ? "destructive" : "outline"}
-                            className="rounded text-[8px] px-1 py-0 h-4 shrink-0"
-                          >
-                            {isLockEvent ? "LOCK" : "UNLOCK"}
-                          </Badge>
+                      <div className="flex items-center gap-3 px-3 py-2.5">
+                        <div
+                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
+                            isLockEvent ? "bg-red-100 dark:bg-red-900/30" : "bg-green-100 dark:bg-green-900/30"
+                          }`}
+                        >
+                          {isLockEvent ? (
+                            <ShieldAlert className="h-3.5 w-3.5 text-red-600 dark:text-red-400" />
+                          ) : (
+                            <ShieldCheck className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                          )}
                         </div>
-                        <p className="text-[10px] text-muted-foreground truncate">
-                          {new Date(event.createdAt).toLocaleString("pt-BR")}
-                          {event.reason && ` \u00b7 ${event.reason}`}
-                        </p>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-medium text-foreground truncate">
+                              {userName || event.userName || "Sistema"}
+                            </span>
+                            {betValue && (
+                              <span className="text-xs font-semibold text-primary shrink-0">
+                                R$ {Number(betValue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                              </span>
+                            )}
+                            <Badge
+                              variant={isLockEvent ? "destructive" : "outline"}
+                              className="rounded text-[8px] px-1 py-0 h-4 shrink-0"
+                            >
+                              {isLockEvent ? "LOCK" : "UNLOCK"}
+                            </Badge>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            {new Date(event.createdAt).toLocaleString("pt-BR")}
+                            {betType && ` · ${betType === "SPORT_BET" ? "Esportiva" : betType === "CASINO_BET" ? "Cassino" : betType}`}
+                          </p>
+                        </div>
                       </div>
+
+                      {/* Dados expandidos da aposta */}
+                      {isExpanded && d && (
+                        <div className="px-3 pb-3">
+                          <div className="rounded-lg border border-border bg-muted/20 p-3">
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Dados da Aposta</p>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                              {Object.entries(d)
+                                .filter(([k]) => k !== "type")
+                                .filter(([, v]) => v !== null && v !== undefined && v !== "")
+                                .map(([key, value]) => (
+                                  <div key={key}>
+                                    <p className="text-[9px] text-muted-foreground">{getFieldLabel(key)}</p>
+                                    <p className="text-[11px] font-medium text-foreground truncate">
+                                      {typeof value === "number" && (key.includes("value") || key.includes("credits") || key.includes("prize"))
+                                        ? `R$ ${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                                        : String(value)}
+                                    </p>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

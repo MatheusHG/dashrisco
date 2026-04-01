@@ -189,6 +189,7 @@ export async function panelRoutes(app: FastifyInstance) {
         status?: string;
         completedBy?: string;
         assignedTo?: string;
+        webhookType?: string;
         startDate?: string;
         endDate?: string;
       };
@@ -201,6 +202,13 @@ export async function panelRoutes(app: FastifyInstance) {
       if (query.status) where.status = query.status;
       if (query.completedBy) where.completedBy = query.completedBy;
       if (query.assignedTo) where.assignedTo = query.assignedTo;
+      if (query.webhookType) {
+        const configsOfType = await app.prisma.alertConfig.findMany({
+          where: { webhookType: query.webhookType as any },
+          select: { id: true },
+        });
+        where.alertConfigId = { in: configsOfType.map((c) => c.id) };
+      }
       if (query.startDate || query.endDate) {
         where.createdAt = {};
         if (query.startDate)
@@ -265,6 +273,11 @@ export async function panelRoutes(app: FastifyInstance) {
       if (body.title !== undefined) updateData.title = body.title;
       if (body.description !== undefined) updateData.description = body.description;
       if (body.assignedTo !== undefined) updateData.assignedTo = body.assignedTo;
+
+      // Auto-assign: se moveu a task e não tem responsável, atribui a quem moveu
+      if (body.status !== undefined && !current.assignedTo && body.assignedTo === undefined) {
+        updateData.assignedTo = request.currentUser?.id ?? null;
+      }
 
       // Quando marcar como "done", registrar quem completou e quando
       // Preserva o primeiro completedAt para SLA (reaberturas não afetam)
@@ -422,6 +435,55 @@ export async function panelRoutes(app: FastifyInstance) {
       });
 
       return logs;
+    }
+  );
+
+  // ==================
+  // TASK CHECKLIST
+  // ==================
+
+  app.patch<{ Params: { id: string } }>(
+    "/tasks/:id/checklist",
+    { preHandler: authorize("panel:read") },
+    async (request, reply) => {
+      const { id } = request.params;
+      const body = request.body as { index: number; checked: boolean };
+
+      const task = await app.prisma.panelTask.findUnique({ where: { id } });
+      if (!task) return reply.status(404).send({ error: "Task nao encontrada" });
+
+      const checklist = (task.checklist as Array<{ label: string; checked: boolean }>) || [];
+      if (body.index < 0 || body.index >= checklist.length) {
+        return reply.status(400).send({ error: "Indice invalido" });
+      }
+
+      checklist[body.index] = { ...checklist[body.index]!, checked: body.checked };
+
+      const allChecked = checklist.length > 0 && checklist.every((item) => item.checked);
+
+      const updateData: Record<string, unknown> = { checklist };
+
+      // Auto-complete: se todos os itens estão marcados, conclui a task
+      if (allChecked && task.status !== "done") {
+        updateData.status = "done";
+        updateData.completedBy = request.currentUser?.id ?? null;
+        if (!task.completedAt) {
+          updateData.completedAt = new Date();
+        }
+      }
+
+      // Se desmarcou algum e a task estava done, reabre
+      if (!allChecked && task.status === "done") {
+        updateData.status = "in_progress";
+        updateData.completedBy = null;
+      }
+
+      const updated = await app.prisma.panelTask.update({
+        where: { id },
+        data: updateData,
+      });
+
+      return updated;
     }
   );
 

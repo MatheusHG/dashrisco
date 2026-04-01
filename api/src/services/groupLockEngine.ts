@@ -266,13 +266,14 @@ export class GroupLockEngine {
       unlockAt: new Date(Date.now() + group.lockSeconds * 1000),
     });
 
-    // 3) Registrar evento no banco
+    // 3) Registrar evento no banco (com dados da aposta)
     await this.prisma.lockGroupEvent.create({
       data: {
         groupId: group.id,
         action: "locked",
         userName: `Sistema (aposta de ${triggerUserName})`,
         reason: `Aposta detectada do usuario ${triggerUserName} (${triggerUserId}). Bloqueio automatico por ${group.lockSeconds}s.`,
+        data: betData as Prisma.InputJsonValue,
       },
     });
 

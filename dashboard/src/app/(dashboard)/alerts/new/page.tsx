@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Pencil, Plus, Database, Play, Loader2, X, Bell, ListTodo, Zap, CheckCircle,
   MessageSquare, ArrowLeft, ArrowRight, Filter, Columns, FileText, Check, Eye,
-  AlertTriangle,
+  AlertTriangle, CheckSquare, GripVertical, Share2,
 } from "lucide-react";
 
 const WEBHOOK_TYPES = [
@@ -66,10 +66,13 @@ export default function NewAlertPage() {
   const [mode, setMode] = useState<"ALERT" | "WATCH">("ALERT");
   const [publishPanel, setPublishPanel] = useState(false);
   const [publishChat, setPublishChat] = useState(false);
+  const [externalWebhookUrl, setExternalWebhookUrl] = useState("");
   const [chatWebhookUrl, setChatWebhookUrl] = useState("");
   const [createPanelTask, setCreatePanelTask] = useState(false);
   const [createClickupTask, setCreateClickupTask] = useState(false);
   const [clickupListId, setClickupListId] = useState("");
+  const [checklist, setChecklist] = useState<string[]>([]);
+  const [newCheckItem, setNewCheckItem] = useState("");
   const [webhookType, setWebhookType] = useState("");
   const [availableFields, setAvailableFields] = useState<FieldSchema[]>([]);
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
@@ -109,8 +112,10 @@ export default function NewAlertPage() {
         method: "POST",
         body: JSON.stringify({
           name, description: description || undefined, mode, webhookType, publishPanel, publishChat,
-          chatWebhookUrl: publishChat ? chatWebhookUrl : null, createPanelTask, createClickupTask,
-          clickupListId: createClickupTask ? clickupListId : null, selectedFields,
+          chatWebhookUrl: publishChat ? chatWebhookUrl : null,
+          externalWebhookUrl: externalWebhookUrl.trim() || null, createPanelTask, createClickupTask,
+          clickupListId: createClickupTask ? clickupListId : null,
+          checklist: createPanelTask ? checklist : [], selectedFields,
           filters: filters.map((f, i) => ({ field: f.field, operator: f.operator, value: f.value, logicGate: i < filters.length - 1 ? f.logicGate || "AND" : null, order: i })),
           queryEnabled, clickhouseQuery: queryEnabled ? clickhouseQuery : null,
           queryConditions: queryEnabled ? queryConditions.map((c, i) => ({ field: c.field, operator: c.operator, value: c.value, logicGate: i < queryConditions.length - 1 ? c.logicGate || "AND" : null, order: i })) : [],
@@ -123,7 +128,11 @@ export default function NewAlertPage() {
 
   const canNext = (s: number) => {
     if (s === 1) return !!name;
-    if (s === 2) return publishPanel || publishChat;
+    if (s === 2) {
+      if (!(publishPanel || publishChat)) return false;
+      if (externalWebhookUrl.trim() && !/^https?:\/\/.+/.test(externalWebhookUrl.trim())) return false;
+      return true;
+    }
     if (s === 4) return !!webhookType;
     if (s === 5) return selectedFields.length > 0;
     return true;
@@ -231,6 +240,26 @@ export default function NewAlertPage() {
                   <Input value={chatWebhookUrl} onChange={(e) => setChatWebhookUrl(e.target.value)} placeholder="https://chat.googleapis.com/v1/spaces/..." className="h-10 rounded-xl text-sm" />
                 </div>
               )}
+
+              {/* Webhook externo */}
+              <div className="space-y-3 pt-3 border-t border-border/50">
+                <div className="flex items-center gap-2">
+                  <Share2 className="h-4 w-4 text-cyan-500" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Compartilhar via Webhook (opcional)</p>
+                    <p className="text-xs text-muted-foreground">Dispara um POST com os dados do alerta para uma URL externa</p>
+                  </div>
+                </div>
+                <Input
+                  value={externalWebhookUrl}
+                  onChange={(e) => setExternalWebhookUrl(e.target.value)}
+                  placeholder="https://exemplo.com/webhook"
+                  className="h-10 rounded-xl text-sm"
+                />
+                {externalWebhookUrl.trim() && !/^https?:\/\/.+/.test(externalWebhookUrl.trim()) && (
+                  <p className="text-xs text-destructive">URL invalida. Deve comecar com http:// ou https://</p>
+                )}
+              </div>
               <Nav back={1} next={3} nextDisabled={!canNext(2)} />
             </CardContent>
           </Card>
@@ -254,6 +283,53 @@ export default function NewAlertPage() {
                 <div className="space-y-2 pl-2 border-l-2 border-primary/30 ml-2">
                   <Label className="text-xs text-muted-foreground">ID da Lista do ClickUp</Label>
                   <Input value={clickupListId} onChange={(e) => setClickupListId(e.target.value)} placeholder="ID da lista" className="h-10 rounded-xl text-sm" />
+                </div>
+              )}
+
+              {/* Checklist de verificacao */}
+              {createPanelTask && (
+                <div className="space-y-3 pt-3 border-t border-border/50">
+                  <div className="flex items-center gap-2">
+                    <CheckSquare className="h-4 w-4 text-violet-500" />
+                    <p className="text-sm font-semibold text-foreground">Checklist de Verificacao</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Defina os itens que o analista deve verificar ao analisar a task. A task sera concluida automaticamente quando todos forem marcados.</p>
+
+                  {checklist.map((item, i) => (
+                    <div key={i} className="flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-2">
+                      <CheckSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span className="text-sm flex-1">{item}</span>
+                      <button onClick={() => setChecklist(checklist.filter((_, j) => j !== i))} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+
+                  <div className="flex gap-2">
+                    <Input
+                      value={newCheckItem}
+                      onChange={(e) => setNewCheckItem(e.target.value)}
+                      placeholder="Ex: Verificar FTD do usuario"
+                      className="h-9 rounded-xl text-sm flex-1"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && newCheckItem.trim()) {
+                          e.preventDefault();
+                          setChecklist([...checklist, newCheckItem.trim()]);
+                          setNewCheckItem("");
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl gap-1 shrink-0"
+                      disabled={!newCheckItem.trim()}
+                      onClick={() => { setChecklist([...checklist, newCheckItem.trim()]); setNewCheckItem(""); }}
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Adicionar
+                    </Button>
+                  </div>
                 </div>
               )}
               <Nav back={2} next={4} />
@@ -486,6 +562,7 @@ export default function NewAlertPage() {
                 <div className="flex gap-2">
                   {publishPanel && <Badge variant="secondary" className="rounded-lg">Painel</Badge>}
                   {publishChat && <Badge variant="secondary" className="rounded-lg">Google Chat</Badge>}
+                  {externalWebhookUrl.trim() && <Badge variant="secondary" className="rounded-lg">Webhook Externo</Badge>}
                   {createPanelTask && <Badge variant="secondary" className="rounded-lg">Task Painel</Badge>}
                   {createClickupTask && <Badge variant="secondary" className="rounded-lg">Task ClickUp</Badge>}
                 </div>
@@ -502,6 +579,15 @@ export default function NewAlertPage() {
                     <div className="flex items-center gap-1.5"><Database className="h-3.5 w-3.5 text-violet-500" /><p className="text-[10px] uppercase tracking-wider text-violet-600 dark:text-violet-400 font-semibold">Consulta ClickHouse</p></div>
                     <pre className="text-xs font-mono bg-muted/50 rounded-lg p-2 overflow-auto max-h-20">{clickhouseQuery}</pre>
                     {queryConditions.length > 0 && <p className="text-xs font-mono text-muted-foreground">Condicoes: {queryConditions.map((c, i) => `${c.field} ${opLabel(c.operator)} ${c.value}${i < queryConditions.length - 1 ? ` ${c.logicGate || "AND"} ` : ""}`).join("")}</p>}
+                  </div>
+                )}
+
+                {checklist.length > 0 && (
+                  <div className="rounded-xl bg-muted/30 p-3 space-y-1.5">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1"><CheckSquare className="h-3 w-3" />Checklist ({checklist.length} itens)</p>
+                    {checklist.map((item, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs"><CheckSquare className="h-3 w-3 text-muted-foreground" />{item}</div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -545,6 +631,7 @@ export default function NewAlertPage() {
                   <div className="flex flex-wrap gap-1 mt-1">
                     {publishPanel && <Badge variant="secondary" className="text-[10px]">Painel</Badge>}
                     {publishChat && <Badge variant="secondary" className="text-[10px]">Chat</Badge>}
+                    {externalWebhookUrl.trim() && <Badge variant="secondary" className="text-[10px]">Webhook</Badge>}
                     {!publishPanel && !publishChat && <span className="text-muted-foreground italic text-xs">—</span>}
                   </div>
                 </div>

@@ -41,6 +41,8 @@ import {
   Bold,
   Italic,
   Underline,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 
 // ═══════════════════════════════════════
@@ -67,7 +69,8 @@ const PRIORITY_STYLES: Record<number, { label: string; bg: string; text: string;
 
 interface TaskComment { id: string; userId: string | null; userName: string; message: string; imageUrl: string | null; createdAt: string; }
 interface TaskAttachment { id: string; fileName: string; fileType: string; fileSize: number; filePath: string; createdAt: string; }
-interface PanelTaskItem { id: string; title: string; description: string | null; status: string; priority: number; data: Record<string, unknown> | null; assignedTo: string | null; completedBy: string | null; createdAt: string; updatedAt: string; _count?: { comments: number }; }
+interface ChecklistItem { label: string; checked: boolean; }
+interface PanelTaskItem { id: string; title: string; description: string | null; status: string; priority: number; data: Record<string, unknown> | null; checklist?: ChecklistItem[]; assignedTo: string | null; completedBy: string | null; createdAt: string; updatedAt: string; _count?: { comments: number }; }
 interface TaskDetail extends PanelTaskItem { comments: TaskComment[]; attachments: TaskAttachment[]; assignedUser: { id: string; name: string } | null; completedByUser: { id: string; name: string } | null; allUsers: { id: string; name: string }[]; }
 interface HistoryEntry { id: string; action: string; details: Record<string, unknown> | null; createdAt: string; user: { id: string; name: string } | null; }
 interface UserOption { id: string; name: string; }
@@ -281,6 +284,19 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
     setCommentImagePreview(null);
   };
 
+  const toggleCheckItem = async (index: number, checked: boolean) => {
+    if (!task) return;
+    // Optimistic update
+    const updated = [...(task.checklist ?? [])];
+    updated[index] = { ...updated[index]!, checked };
+    setTask({ ...task, checklist: updated });
+    try {
+      await api.fetch(`/panel/tasks/${taskId}/checklist`, { method: "PATCH", body: JSON.stringify({ index, checked }) });
+      await fetchTask();
+      onUpdate();
+    } catch (err) { console.error(err); fetchTask(); }
+  };
+
   const wrapSelection = (prefix: string, suffix: string) => {
     const el = commentTextRef.current;
     if (!el) return;
@@ -456,6 +472,51 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
                 </div>
               )}
             </div>
+
+            {/* Checklist */}
+            {(task.checklist ?? []).length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <CheckSquare className="h-3.5 w-3.5" />
+                    Verificacoes ({(task.checklist ?? []).filter((c) => c.checked).length}/{(task.checklist ?? []).length})
+                  </p>
+                  <span className="text-[10px] text-muted-foreground">
+                    {Math.round(((task.checklist ?? []).filter((c) => c.checked).length / (task.checklist ?? []).length) * 100)}%
+                  </span>
+                </div>
+                {/* Progress bar */}
+                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden mb-3">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-300"
+                    style={{ width: `${((task.checklist ?? []).filter((c) => c.checked).length / (task.checklist ?? []).length) * 100}%` }}
+                  />
+                </div>
+                <div className="space-y-1">
+                  {(task.checklist ?? []).map((item, i) => (
+                    <label
+                      key={i}
+                      className={`flex items-center gap-3 rounded-lg px-3 py-2 cursor-pointer transition-colors hover:bg-muted/40 ${item.checked ? "opacity-60" : ""}`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleCheckItem(i, !item.checked)}
+                        className="shrink-0"
+                      >
+                        {item.checked ? (
+                          <CheckSquare className="h-4 w-4 text-primary" />
+                        ) : (
+                          <Square className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </button>
+                      <span className={`text-sm ${item.checked ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                        {item.label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Webhook data (collapsible) */}
             {dataEntries.length > 0 && (
@@ -912,8 +973,9 @@ export default function PanelTasksPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [assignedTo, setAssignedTo] = useState<string>(isAdmin ? "" : currentUser?.id ?? "");
+  const [webhookType, setWebhookType] = useState("");
   const [showFilters, setShowFilters] = useState(true);
-  const hasFilters = startDate || endDate || assignedTo;
+  const hasFilters = startDate || endDate || assignedTo || webhookType;
 
   const fetchTasks = useCallback(async () => {
     setLoading(true);
@@ -922,12 +984,13 @@ export default function PanelTasksPage() {
       if (startDate) params.set("startDate", startDate);
       if (endDate) params.set("endDate", endDate);
       if (assignedTo) params.set("assignedTo", assignedTo);
+      if (webhookType) params.set("webhookType", webhookType);
       const data = await api.fetch<{ tasks: PanelTaskItem[]; users: UserOption[] }>(`/panel/tasks?${params}`);
       setTasks(data.tasks);
       setUsers(data.users);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
-  }, [startDate, endDate, assignedTo]);
+  }, [startDate, endDate, assignedTo, webhookType]);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
@@ -976,13 +1039,26 @@ export default function PanelTasksPage() {
             <div className="space-y-1"><Label className="text-xs">Inicio</Label><Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-40 h-8 text-sm" /></div>
             <div className="space-y-1"><Label className="text-xs">Fim</Label><Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-40 h-8 text-sm" /></div>
             <div className="space-y-1">
+              <Label className="text-xs">Tipo</Label>
+              <select className="flex h-8 rounded-md border border-input bg-transparent px-3 text-sm text-foreground" value={webhookType} onChange={(e) => setWebhookType(e.target.value)}>
+                <option value="">Todos</option>
+                <option value="SPORT_BET">Apostas Sportbook</option>
+                <option value="SPORT_PRIZE">Premios Sportbook</option>
+                <option value="CASINO_BET">Apostas Cassino</option>
+                <option value="CASINO_PRIZE">Premios Cassino</option>
+                <option value="DEPOSIT">Deposito</option>
+                <option value="WITHDRAWAL_CONFIRMATION">Saque</option>
+                <option value="LOGIN">Login</option>
+              </select>
+            </div>
+            <div className="space-y-1">
               <Label className="text-xs">Responsavel</Label>
               <select className="flex h-8 rounded-md border border-input bg-transparent px-3 text-sm text-foreground" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>
                 <option value="">Todos</option>
                 {users.map((u) => (<option key={u.id} value={u.id}>{u.name}</option>))}
               </select>
             </div>
-            {hasFilters && <Button variant="ghost" size="sm" onClick={() => { setStartDate(""); setEndDate(""); setAssignedTo(isAdmin ? "" : currentUser?.id ?? ""); }}><X className="h-4 w-4" /> Limpar</Button>}
+            {hasFilters && <Button variant="ghost" size="sm" onClick={() => { setStartDate(""); setEndDate(""); setAssignedTo(isAdmin ? "" : currentUser?.id ?? ""); setWebhookType(""); }}><X className="h-4 w-4" /> Limpar</Button>}
           </CardContent>
         </Card>
       )}

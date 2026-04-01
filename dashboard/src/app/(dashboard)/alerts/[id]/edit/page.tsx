@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Pencil, AlertTriangle, Eye } from "lucide-react";
+import { ArrowLeft, Pencil, AlertTriangle, Eye, Plus, CheckSquare, X } from "lucide-react";
 
 const WEBHOOK_TYPES = [
   { value: "CASINO_BET", label: "Apostas Cassino" },
@@ -50,7 +50,9 @@ interface AlertConfig {
   publishPanel: boolean;
   publishChat: boolean;
   chatWebhookUrl: string | null;
+  externalWebhookUrl: string | null;
   createPanelTask: boolean;
+  checklist: string[];
   createClickupTask: boolean;
   clickupListId: string | null;
   selectedFields: string[];
@@ -80,9 +82,12 @@ export default function EditAlertPage() {
   const [publishPanel, setPublishPanel] = useState(false);
   const [publishChat, setPublishChat] = useState(false);
   const [chatWebhookUrl, setChatWebhookUrl] = useState("");
+  const [externalWebhookUrl, setExternalWebhookUrl] = useState("");
   const [createPanelTask, setCreatePanelTask] = useState(false);
   const [createClickupTask, setCreateClickupTask] = useState(false);
   const [clickupListId, setClickupListId] = useState("");
+  const [checklist, setChecklist] = useState<string[]>([]);
+  const [newCheckItem, setNewCheckItem] = useState("");
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [filters, setFilters] = useState<Filter[]>([]);
   const [availableFields, setAvailableFields] = useState<FieldSchema[]>([]);
@@ -98,6 +103,8 @@ export default function EditAlertPage() {
       setPublishPanel(data.publishPanel);
       setPublishChat(data.publishChat);
       setChatWebhookUrl(data.chatWebhookUrl || "");
+      setExternalWebhookUrl(data.externalWebhookUrl || "");
+      setChecklist((data.checklist as string[]) || []);
       setCreatePanelTask(data.createPanelTask);
       setCreateClickupTask(data.createClickupTask);
       setClickupListId(data.clickupListId || "");
@@ -179,7 +186,9 @@ export default function EditAlertPage() {
           publishPanel,
           publishChat,
           chatWebhookUrl: publishChat ? chatWebhookUrl : null,
+          externalWebhookUrl: externalWebhookUrl.trim() || null,
           createPanelTask,
+          checklist: createPanelTask ? checklist : [],
           createClickupTask,
           clickupListId: createClickupTask ? clickupListId : null,
           selectedFields,
@@ -316,6 +325,18 @@ export default function EditAlertPage() {
               />
             </div>
           )}
+          <div className="space-y-2 pt-4 border-t border-border/50">
+            <Label>Webhook Externo (opcional)</Label>
+            <p className="text-xs text-muted-foreground">Dispara um POST com os dados do alerta para uma URL externa</p>
+            <Input
+              value={externalWebhookUrl}
+              onChange={(e) => setExternalWebhookUrl(e.target.value)}
+              placeholder="https://exemplo.com/webhook"
+            />
+            {externalWebhookUrl.trim() && !/^https?:\/\/.+/.test(externalWebhookUrl.trim()) && (
+              <p className="text-xs text-destructive">URL invalida. Deve comecar com http:// ou https://</p>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -361,6 +382,50 @@ export default function EditAlertPage() {
                 onChange={(e) => setClickupListId(e.target.value)}
                 placeholder="ID da lista"
               />
+            </div>
+          )}
+          {createPanelTask && (
+            <div className="space-y-3 pt-4 border-t border-border/50">
+              <div className="flex items-center gap-2">
+                <CheckSquare className="h-4 w-4 text-violet-500" />
+                <div>
+                  <p className="font-medium text-sm">Checklist de Verificacao</p>
+                  <p className="text-xs text-muted-foreground">Itens que o analista deve verificar. A task conclui automaticamente quando todos forem marcados.</p>
+                </div>
+              </div>
+              {checklist.map((item, i) => (
+                <div key={i} className="flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-2">
+                  <CheckSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-sm flex-1">{item}</span>
+                  <button onClick={() => setChecklist(checklist.filter((_, j) => j !== i))} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              <div className="flex gap-2">
+                <Input
+                  value={newCheckItem}
+                  onChange={(e) => setNewCheckItem(e.target.value)}
+                  placeholder="Ex: Verificar FTD do usuario"
+                  className="flex-1"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newCheckItem.trim()) {
+                      e.preventDefault();
+                      setChecklist([...checklist, newCheckItem.trim()]);
+                      setNewCheckItem("");
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!newCheckItem.trim()}
+                  onClick={() => { setChecklist([...checklist, newCheckItem.trim()]); setNewCheckItem(""); }}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Adicionar
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
