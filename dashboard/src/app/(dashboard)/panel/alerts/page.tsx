@@ -45,8 +45,8 @@ const typeColors: Record<string, string> = {
 const keyFields: Record<string, string[]> = {
   WITHDRAWAL_CONFIRMATION: ["user_name", "user_username", "withdraw_value", "withdraw_status", "withdraw_pix_type"],
   DEPOSIT: ["user_name", "user_username", "deposit_value", "deposit_status", "deposit_method"],
-  CASINO_PRIZE: ["user_name", "casino_game_name", "casino_provider", "casino_bet_value", "casino_prize_value"],
-  CASINO_BET: ["user_name", "casino_game_name", "casino_provider", "casino_bet_value"],
+  CASINO_PRIZE: ["user_name", "game_name", "game_type", "prize_value"],
+  CASINO_BET: ["user_name", "game_name", "game_type", "casino_bet_value"],
   SPORT_PRIZE: ["user_name", "bet_value", "bet_return_value", "bet_odds", "bet_events_count"],
   SPORT_BET: ["user_name", "bet_value", "bet_return_value", "bet_odds", "bet_events_count"],
   LOGIN: ["user_name", "user_email", "login_ip"],

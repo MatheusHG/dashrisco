@@ -67,14 +67,17 @@ const casinoPrizeFields: FieldSchema[] = [
   { name: "user_username", type: "string", example: "teste@teste.com" },
   { name: "user_credits", type: "number", example: "5000" },
   { name: "user_cpf", type: "string", example: "00000000000" },
+  { name: "user_email", type: "string", example: "teste@teste.com" },
+  { name: "user_contact", type: "string", example: "11983795941" },
   { name: "user_locked", type: "boolean", example: "false" },
   { name: "user_has_kyc", type: "boolean", example: "true" },
-  { name: "casino_bet_id", type: "string", example: "abc123" },
-  { name: "casino_game_name", type: "string", example: "Fortune Tiger" },
-  { name: "casino_provider", type: "string", example: "PG Soft" },
-  { name: "casino_bet_value", type: "number", example: "10" },
-  { name: "casino_prize_value", type: "number", example: "5000" },
-  { name: "casino_created_at", type: "date", example: "26/11/2025 18:25:59" },
+  { name: "bet_id", type: "string", example: "abc123" },
+  { name: "game_id", type: "string", example: "TopCard000000001" },
+  { name: "game_name", type: "string", example: "Fortune Tiger" },
+  { name: "game_type", type: "string", example: "LIVE" },
+  { name: "prize_value", type: "number", example: "5000" },
+  { name: "bet_created_at", type: "date", example: "01/04/2026 10:51:40" },
+  { name: "bet_resolved_at", type: "date", example: "01/04/2026 10:51:44" },
 ];
 
 const casinoBetFields: FieldSchema[] = [

@@ -382,7 +382,7 @@ export default function AlertDetailPage() {
                     case "DEPOSIT": return fmt(d.deposit_value);
                     case "SPORT_BET": case "CASINO_BET": return fmt(d.bet_value ?? d.casino_bet_value);
                     case "SPORT_PRIZE": return fmt(d.bet_return_value);
-                    case "CASINO_PRIZE": return fmt(d.casino_prize_value);
+                    case "CASINO_PRIZE": return fmt(d.prize_value ?? d.casino_prize_value);
                     default: return null;
                   }
                 })();

@@ -243,9 +243,9 @@ export function NotificationBell() {
       detail = ` de R$ ${Number(n.data.bet_value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
     } else if (
       (n.webhookType === "SPORT_PRIZE" || n.webhookType === "CASINO_PRIZE") &&
-      (n.data.casino_prize_value || n.data.bet_return_value)
+      (n.data.prize_value || n.data.casino_prize_value || n.data.bet_return_value)
     ) {
-      const val = n.data.casino_prize_value || n.data.bet_return_value;
+      const val = n.data.prize_value || n.data.casino_prize_value || n.data.bet_return_value;
       detail = ` de R$ ${Number(val).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
     }
 

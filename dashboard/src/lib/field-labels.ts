@@ -54,6 +54,15 @@ export const fieldLabels: Record<string, string> = {
   casino_bet_value: "Valor Aposta Cassino",
   casino_prize_value: "Valor Premio Cassino",
   casino_created_at: "Data Aposta Cassino",
+  game_id: "ID do Jogo",
+  game_name: "Nome do Jogo",
+  game_type: "Tipo do Jogo",
+  game_round_id: "ID da Rodada",
+  game_custom_types: "Categorias do Jogo",
+  prize_id: "ID do Premio",
+  prize_value: "Valor do Premio",
+  bet_resolved_at: "Data Resolucao Aposta",
+  is_test: "Teste",
 
   // Esportivo
   bet_id: "ID da Aposta",
