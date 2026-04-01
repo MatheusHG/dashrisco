@@ -15,6 +15,9 @@ const WEBHOOK_TYPES_FILTER = [{ value: "", label: "Todos" }, ...WEBHOOK_TYPES.ma
 const typeColors: Record<string, string> = {
   WITHDRAWAL_REQUEST: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-400",
   WITHDRAWAL_CONFIRMATION: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-400",
+  DEPOSIT_REQUEST: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400",
+  CASINO_REFUND: "bg-zinc-100 text-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400",
+  USER_REGISTRATION: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-400",
   DEPOSIT: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400",
   CASINO_PRIZE: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-400",
   CASINO_BET: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-400",
@@ -27,12 +30,15 @@ const typeColors: Record<string, string> = {
 const keyFields: Record<string, string[]> = {
   WITHDRAWAL_REQUEST: ["user_name", "user_username", "withdraw_value", "withdraw_status", "withdraw_pix_type"],
   WITHDRAWAL_CONFIRMATION: ["user_name", "user_username", "withdraw_value", "withdraw_status", "withdraw_pix_type"],
-  DEPOSIT: ["user_name", "user_username", "deposit_value", "deposit_status", "deposit_method"],
+  DEPOSIT_REQUEST: ["user_name", "user_username", "deposit_value", "deposit_status"],
+  DEPOSIT: ["user_name", "user_username", "deposit_value", "deposit_status"],
   CASINO_PRIZE: ["user_name", "game_name", "game_type", "prize_value"],
-  CASINO_BET: ["user_name", "game_name", "game_type", "casino_bet_value"],
-  SPORT_PRIZE: ["user_name", "bet_value", "bet_return_value", "bet_odds", "bet_events_count"],
-  SPORT_BET: ["user_name", "bet_value", "bet_return_value", "bet_odds", "bet_events_count"],
-  LOGIN: ["user_name", "user_email", "login_ip"],
+  CASINO_BET: ["user_name", "game_name", "bet_value"],
+  CASINO_REFUND: ["user_name", "game_name", "refunded_value"],
+  SPORT_PRIZE: ["user_name", "bet_value", "bet_return_value", "bet_events_count"],
+  SPORT_BET: ["user_name", "bet_value", "bet_return_value", "bet_events_count"],
+  LOGIN: ["login_username", "login_ip_address", "login_source"],
+  USER_REGISTRATION: ["user_name", "user_cpf", "user_email", "user_has_kyc"],
 };
 
 interface AlertConfigOption {

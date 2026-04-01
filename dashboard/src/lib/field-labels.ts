@@ -72,37 +72,71 @@ export const fieldLabels: Record<string, string> = {
   bet_events_count: "Qtd. Eventos",
   bet_created_at: "Data da Aposta",
 
-  // Login
+  // Login (campos reais da NGX)
   login_ip: "IP do Login",
   login_at: "Data do Login",
+  login_user_id: "ID do Usuario (Login)",
+  login_username: "Username (Login)",
+  login_ip_address: "IP do Login",
+  login_source: "Dispositivo",
+  login_agent: "User-Agent",
+  login_date: "Data do Login",
+
+  // Sport bet extras
+  bet_code: "Codigo da Aposta",
+  bet_estimated_processing: "Previsao Processamento",
+  bet_bonus: "Aposta com Bonus",
+  bet_events: "Eventos da Aposta",
+  bet_is_live: "Aposta ao Vivo",
+
+  // Casino refund
+  refunded_transaction_id: "ID Transacao Reembolsada",
+  refunded_value: "Valor Reembolsado",
+
+  // Deposit extras
+  deposit_qr_code: "QR Code PIX",
+  deposit_qr_code_image: "Imagem QR Code",
+  deposit_external_id: "ID Externo Deposito",
+  deposit_guest_player: "Jogador Convidado",
+  instant_deposit_value: "Valor Deposito Instantaneo",
+
+  // User extras
+  user_bonus_credits: "Creditos Bonus",
+  external_params: "Parametros Externos",
 };
 
 /**
  * Labels traduzidos para tipos de webhook.
  */
 export const webhookTypeLabels: Record<string, string> = {
-  CASINO_BET: "Apostas Cassino",
-  CASINO_PRIZE: "Premios Cassino",
-  SPORT_BET: "Apostas Sportbook",
-  SPORT_PRIZE: "Premios Sportbook",
-  LOGIN: "Login",
-  DEPOSIT: "Deposito",
+  SPORT_BET: "Aposta Esportiva",
+  SPORT_PRIZE: "Premio Esportivo",
+  CASINO_BET: "Aposta Cassino",
+  CASINO_PRIZE: "Premio Cassino",
+  CASINO_REFUND: "Reembolso Cassino",
+  DEPOSIT_REQUEST: "Deposito Solicitado",
+  DEPOSIT: "Deposito Confirmado",
   WITHDRAWAL_REQUEST: "Saque Solicitado",
   WITHDRAWAL_CONFIRMATION: "Saque Aprovado",
+  LOGIN: "Login",
+  USER_REGISTRATION: "Cadastro de Usuario",
 };
 
 /**
  * Lista de tipos de webhook para selects/filtros.
  */
 export const WEBHOOK_TYPES = [
-  { value: "SPORT_BET", label: "Apostas Sportbook", icon: "🏀" },
-  { value: "SPORT_PRIZE", label: "Premios Sportbook", icon: "🏆" },
-  { value: "CASINO_BET", label: "Apostas Cassino", icon: "🎰" },
-  { value: "CASINO_PRIZE", label: "Premios Cassino", icon: "💰" },
-  { value: "DEPOSIT", label: "Deposito", icon: "💳" },
-  { value: "WITHDRAWAL_REQUEST", label: "Saque Solicitado", icon: "📋" },
+  { value: "SPORT_BET", label: "Aposta Esportiva", icon: "🏀" },
+  { value: "SPORT_PRIZE", label: "Premio Esportivo", icon: "🏆" },
+  { value: "CASINO_BET", label: "Aposta Cassino", icon: "🎰" },
+  { value: "CASINO_PRIZE", label: "Premio Cassino", icon: "💰" },
+  { value: "CASINO_REFUND", label: "Reembolso Cassino", icon: "🔄" },
+  { value: "DEPOSIT_REQUEST", label: "Deposito Solicitado", icon: "📋" },
+  { value: "DEPOSIT", label: "Deposito Confirmado", icon: "💳" },
+  { value: "WITHDRAWAL_REQUEST", label: "Saque Solicitado", icon: "📝" },
   { value: "WITHDRAWAL_CONFIRMATION", label: "Saque Aprovado", icon: "🏧" },
   { value: "LOGIN", label: "Login", icon: "🔐" },
+  { value: "USER_REGISTRATION", label: "Cadastro de Usuario", icon: "👤" },
 ];
 
 /**

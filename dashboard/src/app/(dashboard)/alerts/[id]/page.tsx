@@ -28,6 +28,9 @@ import Link from "next/link";
 const typeColors: Record<string, string> = {
   WITHDRAWAL_REQUEST: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-400",
   WITHDRAWAL_CONFIRMATION: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-400",
+  DEPOSIT_REQUEST: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400",
+  CASINO_REFUND: "bg-zinc-100 text-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400",
+  USER_REGISTRATION: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-400",
   DEPOSIT: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400",
   CASINO_PRIZE: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-400",
   CASINO_BET: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-400",
@@ -374,10 +377,11 @@ export default function AlertDetailPage() {
                   const fmt = (v: unknown) => v ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : null;
                   switch (alert.webhookType) {
                     case "WITHDRAWAL_REQUEST": case "WITHDRAWAL_CONFIRMATION": return fmt(d.withdraw_value);
-                    case "DEPOSIT": return fmt(d.deposit_value);
-                    case "SPORT_BET": case "CASINO_BET": return fmt(d.bet_value ?? d.casino_bet_value);
+                    case "DEPOSIT_REQUEST": case "DEPOSIT": return fmt(d.deposit_value);
+                    case "SPORT_BET": case "CASINO_BET": return fmt(d.bet_value);
                     case "SPORT_PRIZE": return fmt(d.bet_return_value);
-                    case "CASINO_PRIZE": return fmt(d.prize_value ?? d.casino_prize_value);
+                    case "CASINO_PRIZE": return fmt(d.prize_value);
+                    case "CASINO_REFUND": return fmt(d.refunded_value);
                     default: return null;
                   }
                 })();

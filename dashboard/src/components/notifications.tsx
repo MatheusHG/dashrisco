@@ -227,10 +227,11 @@ export function NotificationBell() {
       const d = n.data;
       switch (n.webhookType) {
         case "WITHDRAWAL_REQUEST": case "WITHDRAWAL_CONFIRMATION": return d.withdraw_value;
-        case "DEPOSIT": return d.deposit_value;
-        case "SPORT_BET": case "CASINO_BET": return d.bet_value ?? d.casino_bet_value;
-        case "SPORT_PRIZE": return d.bet_return_value ?? d.prize_value;
-        case "CASINO_PRIZE": return d.prize_value ?? d.casino_prize_value;
+        case "DEPOSIT_REQUEST": case "DEPOSIT": return d.deposit_value;
+        case "SPORT_BET": case "CASINO_BET": return d.bet_value;
+        case "SPORT_PRIZE": return d.bet_return_value;
+        case "CASINO_PRIZE": return d.prize_value;
+        case "CASINO_REFUND": return d.refunded_value;
         default: return undefined;
       }
     })();
