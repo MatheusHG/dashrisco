@@ -134,7 +134,8 @@ const loginFields: FieldSchema[] = [
 ];
 
 const schemas: Record<string, { label: string; fields: FieldSchema[] }> = {
-  WITHDRAWAL_CONFIRMATION: { label: "Saque", fields: withdrawalFields },
+  WITHDRAWAL_REQUEST: { label: "Saque Solicitado", fields: withdrawalFields },
+  WITHDRAWAL_CONFIRMATION: { label: "Saque Aprovado", fields: withdrawalFields },
   DEPOSIT: { label: "Depósito", fields: depositFields },
   CASINO_PRIZE: { label: "Prêmios Cassino", fields: casinoPrizeFields },
   CASINO_BET: { label: "Apostas Cassino", fields: casinoBetFields },

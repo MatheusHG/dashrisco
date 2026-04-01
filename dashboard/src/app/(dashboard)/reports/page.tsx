@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
+import { webhookTypeLabels } from "@/lib/field-labels";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,11 +19,6 @@ import {
 
 const COLORS = ["#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899", "#6366f1"];
 
-const webhookTypeLabels: Record<string, string> = {
-  CASINO_BET: "Apostas Cassino", CASINO_PRIZE: "Premios Cassino",
-  SPORT_BET: "Apostas Sportbook", SPORT_PRIZE: "Premios Sportbook",
-  LOGIN: "Login", DEPOSIT: "Deposito", WITHDRAWAL_CONFIRMATION: "Saque",
-};
 
 const tooltipStyle = {
   borderRadius: "12px", border: "1px solid var(--color-border)",

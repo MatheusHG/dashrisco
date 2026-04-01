@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
-import { getFieldLabel, formatCurrency } from "@/lib/field-labels";
+import { getFieldLabel, formatCurrency, webhookTypeLabels } from "@/lib/field-labels";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,17 +16,10 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-const webhookTypeLabels: Record<string, string> = {
-  CASINO_BET: "Apostas Cassino",
-  CASINO_PRIZE: "Premios Cassino",
-  SPORT_BET: "Apostas Sportbook",
-  SPORT_PRIZE: "Premios Sportbook",
-  LOGIN: "Login",
-  DEPOSIT: "Deposito",
-  WITHDRAWAL_CONFIRMATION: "Saque",
-};
 
 const typeColors: Record<string, string> = {
+  WITHDRAWAL_REQUEST:
+    "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-400",
   WITHDRAWAL_CONFIRMATION:
     "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-400",
   DEPOSIT:

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
-import { getFieldLabel } from "@/lib/field-labels";
+import { getFieldLabel, webhookTypeLabels } from "@/lib/field-labels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Bell, X, ExternalLink } from "lucide-react";
@@ -10,15 +10,6 @@ import Link from "next/link";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
 
-const webhookTypeLabels: Record<string, string> = {
-  CASINO_BET: "apostou no cassino",
-  CASINO_PRIZE: "ganhou premio no cassino",
-  SPORT_BET: "realizou aposta esportiva",
-  SPORT_PRIZE: "ganhou premio esportivo",
-  LOGIN: "fez login",
-  DEPOSIT: "realizou deposito",
-  WITHDRAWAL_CONFIRMATION: "realizou saque",
-};
 
 interface Notification {
   id: string;
@@ -235,7 +226,7 @@ export function NotificationBell() {
     const val = (() => {
       const d = n.data;
       switch (n.webhookType) {
-        case "WITHDRAWAL_CONFIRMATION": return d.withdraw_value;
+        case "WITHDRAWAL_REQUEST": case "WITHDRAWAL_CONFIRMATION": return d.withdraw_value;
         case "DEPOSIT": return d.deposit_value;
         case "SPORT_BET": case "CASINO_BET": return d.bet_value ?? d.casino_bet_value;
         case "SPORT_PRIZE": return d.bet_return_value ?? d.prize_value;

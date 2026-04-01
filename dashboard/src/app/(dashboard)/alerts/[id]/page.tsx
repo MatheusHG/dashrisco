@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { getFieldLabel, formatCurrency } from "@/lib/field-labels";
+import { getFieldLabel, formatCurrency, webhookTypeLabels } from "@/lib/field-labels";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,17 +24,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-const webhookTypeLabels: Record<string, string> = {
-  CASINO_BET: "Apostas Cassino",
-  CASINO_PRIZE: "Premios Cassino",
-  SPORT_BET: "Apostas Sportbook",
-  SPORT_PRIZE: "Premios Sportbook",
-  LOGIN: "Login",
-  DEPOSIT: "Deposito",
-  WITHDRAWAL_CONFIRMATION: "Saque",
-};
 
 const typeColors: Record<string, string> = {
+  WITHDRAWAL_REQUEST: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-400",
   WITHDRAWAL_CONFIRMATION: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-400",
   DEPOSIT: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400",
   CASINO_PRIZE: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-400",
@@ -378,7 +370,7 @@ export default function AlertDetailPage() {
                   const d = item.data;
                   const fmt = (v: unknown) => v ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : null;
                   switch (alert.webhookType) {
-                    case "WITHDRAWAL_CONFIRMATION": return fmt(d.withdraw_value);
+                    case "WITHDRAWAL_REQUEST": case "WITHDRAWAL_CONFIRMATION": return fmt(d.withdraw_value);
                     case "DEPOSIT": return fmt(d.deposit_value);
                     case "SPORT_BET": case "CASINO_BET": return fmt(d.bet_value ?? d.casino_bet_value);
                     case "SPORT_PRIZE": return fmt(d.bet_return_value);

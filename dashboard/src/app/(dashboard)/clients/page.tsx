@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { api } from "@/lib/api";
+import { webhookTypeLabels } from "@/lib/field-labels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,11 +17,6 @@ import {
 } from "lucide-react";
 
 // ═══ Types ═══
-const webhookTypeLabels: Record<string, string> = {
-  CASINO_BET: "Apostas Cassino", CASINO_PRIZE: "Premios Cassino",
-  SPORT_BET: "Apostas Sportbook", SPORT_PRIZE: "Premios Sportbook",
-  LOGIN: "Login", DEPOSIT: "Deposito", WITHDRAWAL_CONFIRMATION: "Saque",
-};
 
 const lockLabels: Record<string, string> = {
   bet: "Aposta", bonus_bet: "Bonus", casino_bet: "Cassino",

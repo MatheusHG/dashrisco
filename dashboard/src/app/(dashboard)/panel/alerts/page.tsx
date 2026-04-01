@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
-import { getFieldLabel } from "@/lib/field-labels";
+import { getFieldLabel, webhookTypeLabels, WEBHOOK_TYPES } from "@/lib/field-labels";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,28 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Filter, X, ChevronDown, ChevronUp, AlertTriangle, Eye } from "lucide-react";
 
-const WEBHOOK_TYPES = [
-  { value: "", label: "Todos" },
-  { value: "CASINO_BET", label: "Apostas Cassino" },
-  { value: "CASINO_PRIZE", label: "Premios Cassino" },
-  { value: "SPORT_BET", label: "Apostas Sportbook" },
-  { value: "SPORT_PRIZE", label: "Premios Sportbook" },
-  { value: "LOGIN", label: "Login" },
-  { value: "DEPOSIT", label: "Deposito" },
-  { value: "WITHDRAWAL_CONFIRMATION", label: "Saque" },
-];
-
-const webhookTypeLabels: Record<string, string> = {
-  CASINO_BET: "Apostas Cassino",
-  CASINO_PRIZE: "Premios Cassino",
-  SPORT_BET: "Apostas Sportbook",
-  SPORT_PRIZE: "Premios Sportbook",
-  LOGIN: "Login",
-  DEPOSIT: "Deposito",
-  WITHDRAWAL_CONFIRMATION: "Saque",
-};
+const WEBHOOK_TYPES_FILTER = [{ value: "", label: "Todos" }, ...WEBHOOK_TYPES.map(({ value, label }) => ({ value, label }))];
 
 const typeColors: Record<string, string> = {
+  WITHDRAWAL_REQUEST: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-400",
   WITHDRAWAL_CONFIRMATION: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-400",
   DEPOSIT: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-400",
   CASINO_PRIZE: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-400",
@@ -43,6 +25,7 @@ const typeColors: Record<string, string> = {
 
 // Key fields to show by webhook type
 const keyFields: Record<string, string[]> = {
+  WITHDRAWAL_REQUEST: ["user_name", "user_username", "withdraw_value", "withdraw_status", "withdraw_pix_type"],
   WITHDRAWAL_CONFIRMATION: ["user_name", "user_username", "withdraw_value", "withdraw_status", "withdraw_pix_type"],
   DEPOSIT: ["user_name", "user_username", "deposit_value", "deposit_status", "deposit_method"],
   CASINO_PRIZE: ["user_name", "game_name", "game_type", "prize_value"],
@@ -217,7 +200,7 @@ export default function PanelAlertsPage() {
                   setPage(1);
                 }}
               >
-                {WEBHOOK_TYPES.map((t) => (
+                {WEBHOOK_TYPES_FILTER.map((t) => (
                   <option key={t.value} value={t.value}>
                     {t.label}
                   </option>

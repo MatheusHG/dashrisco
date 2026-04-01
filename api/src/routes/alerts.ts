@@ -20,7 +20,7 @@ const createAlertSchema = z.object({
   mode: z.enum(["ALERT", "WATCH"]).default("ALERT"),
   webhookType: z.enum([
     "CASINO_BET", "CASINO_PRIZE", "SPORT_BET", "SPORT_PRIZE",
-    "LOGIN", "DEPOSIT", "WITHDRAWAL_CONFIRMATION",
+    "LOGIN", "DEPOSIT", "WITHDRAWAL_REQUEST", "WITHDRAWAL_CONFIRMATION",
   ]),
   publishPanel: z.boolean().default(false),
   publishChat: z.boolean().default(false),

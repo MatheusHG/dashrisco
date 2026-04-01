@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef, type DragEvent } from "react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { getFieldLabel } from "@/lib/field-labels";
+import { getFieldLabel, WEBHOOK_TYPES } from "@/lib/field-labels";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -1042,13 +1042,9 @@ export default function PanelTasksPage() {
               <Label className="text-xs">Tipo</Label>
               <select className="flex h-8 rounded-md border border-input bg-transparent px-3 text-sm text-foreground" value={webhookType} onChange={(e) => setWebhookType(e.target.value)}>
                 <option value="">Todos</option>
-                <option value="SPORT_BET">Apostas Sportbook</option>
-                <option value="SPORT_PRIZE">Premios Sportbook</option>
-                <option value="CASINO_BET">Apostas Cassino</option>
-                <option value="CASINO_PRIZE">Premios Cassino</option>
-                <option value="DEPOSIT">Deposito</option>
-                <option value="WITHDRAWAL_CONFIRMATION">Saque</option>
-                <option value="LOGIN">Login</option>
+                {WEBHOOK_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
               </select>
             </div>
             <div className="space-y-1">

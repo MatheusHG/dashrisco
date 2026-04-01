@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { getFieldLabel, formatCurrency, parseCurrency } from "@/lib/field-labels";
+import { getFieldLabel, formatCurrency, parseCurrency, WEBHOOK_TYPES } from "@/lib/field-labels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,15 +14,6 @@ import {
   ListTodo, Zap, Columns, Filter, Share2, MessageSquare, Loader2, Save,
 } from "lucide-react";
 
-const WEBHOOK_TYPES = [
-  { value: "SPORT_BET", label: "Apostas Sportbook", icon: "🏀" },
-  { value: "SPORT_PRIZE", label: "Premios Sportbook", icon: "🏆" },
-  { value: "CASINO_BET", label: "Apostas Cassino", icon: "🎰" },
-  { value: "CASINO_PRIZE", label: "Premios Cassino", icon: "💰" },
-  { value: "DEPOSIT", label: "Deposito", icon: "💳" },
-  { value: "WITHDRAWAL_CONFIRMATION", label: "Saque", icon: "🏧" },
-  { value: "LOGIN", label: "Login", icon: "🔐" },
-];
 
 const OPERATORS = [
   { value: "EQUAL", label: "= Igual" },

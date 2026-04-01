@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
+import { webhookTypeLabels } from "@/lib/field-labels";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -17,10 +18,6 @@ import Link from "next/link";
 const COLORS = ["#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899"];
 const tooltipStyle = { borderRadius: "12px", border: "1px solid var(--color-border)", backgroundColor: "var(--color-card)", color: "var(--color-foreground)" };
 
-const webhookTypeLabels: Record<string, string> = {
-  CASINO_BET: "Cassino Bet", CASINO_PRIZE: "Cassino Prize", SPORT_BET: "Sport Bet",
-  SPORT_PRIZE: "Sport Prize", LOGIN: "Login", DEPOSIT: "Deposito", WITHDRAWAL_CONFIRMATION: "Saque",
-};
 
 const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }> = {
   open: { label: "Aberta", bg: "bg-yellow-500/15", text: "text-yellow-700 dark:text-yellow-400" },

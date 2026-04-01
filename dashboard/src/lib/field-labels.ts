@@ -78,6 +78,34 @@ export const fieldLabels: Record<string, string> = {
 };
 
 /**
+ * Labels traduzidos para tipos de webhook.
+ */
+export const webhookTypeLabels: Record<string, string> = {
+  CASINO_BET: "Apostas Cassino",
+  CASINO_PRIZE: "Premios Cassino",
+  SPORT_BET: "Apostas Sportbook",
+  SPORT_PRIZE: "Premios Sportbook",
+  LOGIN: "Login",
+  DEPOSIT: "Deposito",
+  WITHDRAWAL_REQUEST: "Saque Solicitado",
+  WITHDRAWAL_CONFIRMATION: "Saque Aprovado",
+};
+
+/**
+ * Lista de tipos de webhook para selects/filtros.
+ */
+export const WEBHOOK_TYPES = [
+  { value: "SPORT_BET", label: "Apostas Sportbook", icon: "🏀" },
+  { value: "SPORT_PRIZE", label: "Premios Sportbook", icon: "🏆" },
+  { value: "CASINO_BET", label: "Apostas Cassino", icon: "🎰" },
+  { value: "CASINO_PRIZE", label: "Premios Cassino", icon: "💰" },
+  { value: "DEPOSIT", label: "Deposito", icon: "💳" },
+  { value: "WITHDRAWAL_REQUEST", label: "Saque Solicitado", icon: "📋" },
+  { value: "WITHDRAWAL_CONFIRMATION", label: "Saque Aprovado", icon: "🏧" },
+  { value: "LOGIN", label: "Login", icon: "🔐" },
+];
+
+/**
  * Retorna o label traduzido para um campo, ou o nome original se nao houver traducao.
  */
 export function getFieldLabel(fieldName: string): string {
