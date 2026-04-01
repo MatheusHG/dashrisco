@@ -16,8 +16,10 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell,
 } from "recharts";
 import Link from "next/link";
-import { Responsive, WidthProvider, type Layout } from "react-grid-layout/legacy";
+import { Responsive, WidthProvider } from "react-grid-layout";
+import type { Layout } from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
+import "react-resizable/css/styles.css";
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
