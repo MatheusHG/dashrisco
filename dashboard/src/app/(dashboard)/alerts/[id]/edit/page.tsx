@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { getFieldLabel, formatCurrency, parseCurrency } from "@/lib/field-labels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -416,9 +417,9 @@ export default function EditAlertPage() {
                   className="h-4 w-4"
                 />
                 <div>
-                  <p className="font-medium">{field.name}</p>
+                  <p className="font-medium">{getFieldLabel(field.name)}</p>
                   <p className="text-xs text-muted-foreground">
-                    {field.type} - ex: {field.example}
+                    {field.name} — {field.example}
                   </p>
                 </div>
               </label>
@@ -459,7 +460,7 @@ export default function EditAlertPage() {
                 >
                   {selectedFields.map((f) => (
                     <option key={f} value={f}>
-                      {f}
+                      {getFieldLabel(f)}
                     </option>
                   ))}
                 </select>
@@ -478,11 +479,9 @@ export default function EditAlertPage() {
                 </select>
                 <Input
                   className="flex-1"
-                  placeholder="Valor"
-                  value={filter.value}
-                  onChange={(e) =>
-                    updateFilter(index, "value", e.target.value)
-                  }
+                  placeholder="0,00"
+                  value={filter.value ? formatCurrency(String(Math.round(Number(filter.value) * 100))) : ""}
+                  onChange={(e) => updateFilter(index, "value", parseCurrency(e.target.value))}
                 />
                 <Button
                   variant="destructive"
@@ -515,7 +514,7 @@ export default function EditAlertPage() {
                       i < filters.length - 1
                         ? ` ${f.logicGate || "AND"} `
                         : "";
-                    return `${f.field} ${opLabel} ${f.value}${gate}`;
+                    return `${getFieldLabel(f.field)} ${opLabel} ${f.value ? formatCurrency(String(Math.round(Number(f.value) * 100))) : "?"}${gate}`;
                   })
                   .join("")}
               </p>

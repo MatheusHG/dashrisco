@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { api } from "@/lib/api";
+import { getFieldLabel } from "@/lib/field-labels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Bell, X, ExternalLink } from "lucide-react";
@@ -387,7 +388,7 @@ export function NotificationBell() {
                                 .slice(0, 12)
                                 .map(([key, value]) => (
                                   <div key={key} className="flex flex-col">
-                                    <span className="text-muted-foreground">{key}</span>
+                                    <span className="text-muted-foreground">{getFieldLabel(key)}</span>
                                     <span className="font-medium text-foreground truncate">
                                       {String(value)}
                                     </span>

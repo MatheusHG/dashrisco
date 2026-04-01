@@ -229,6 +229,7 @@ model TaskComment {
   userId    String?   @map("user_id")
   userName  String    @map("user_name")
   message   String
+  imageUrl  String?   @map("image_url")
   createdAt DateTime  @default(now()) @map("created_at")
 
   @@index([taskId])

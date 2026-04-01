@@ -188,6 +188,7 @@ export async function panelRoutes(app: FastifyInstance) {
         limit?: string;
         status?: string;
         completedBy?: string;
+        assignedTo?: string;
         startDate?: string;
         endDate?: string;
       };
@@ -199,6 +200,7 @@ export async function panelRoutes(app: FastifyInstance) {
       const where: Record<string, unknown> = {};
       if (query.status) where.status = query.status;
       if (query.completedBy) where.completedBy = query.completedBy;
+      if (query.assignedTo) where.assignedTo = query.assignedTo;
       if (query.startDate || query.endDate) {
         where.createdAt = {};
         if (query.startDate)
@@ -432,13 +434,37 @@ export async function panelRoutes(app: FastifyInstance) {
     { preHandler: authorize("panel:read") },
     async (request, reply) => {
       const { id } = request.params;
-      const body = request.body as { message?: string };
 
-      if (!body.message?.trim()) {
-        return reply.status(400).send({ error: "Mensagem obrigatoria" });
+      let message = "";
+      let imageUrl: string | null = null;
+
+      // Check if multipart (image upload) or JSON
+      const contentType = request.headers["content-type"] || "";
+      if (contentType.includes("multipart/form-data")) {
+        const parts = request.parts();
+        for await (const part of parts) {
+          if (part.type === "field" && part.fieldname === "message") {
+            message = (part.value as string) || "";
+          } else if (part.type === "file" && part.fieldname === "image") {
+            const uploadsDir = path.join(__dirname, "..", "..", "uploads", "comments");
+            fs.mkdirSync(uploadsDir, { recursive: true });
+            const ext = path.extname(part.filename || ".png");
+            const storedName = `${randomUUID()}${ext}`;
+            const filePath = path.join(uploadsDir, storedName);
+            const buffer = await part.toBuffer();
+            fs.writeFileSync(filePath, buffer);
+            imageUrl = `comments/${storedName}`;
+          }
+        }
+      } else {
+        const body = request.body as { message?: string };
+        message = body.message?.trim() || "";
       }
 
-      // Get user name
+      if (!message && !imageUrl) {
+        return reply.status(400).send({ error: "Mensagem ou imagem obrigatoria" });
+      }
+
       const user = request.currentUser?.id
         ? await app.prisma.user.findUnique({
             where: { id: request.currentUser.id },
@@ -451,7 +477,8 @@ export async function panelRoutes(app: FastifyInstance) {
           taskId: id,
           userId: request.currentUser?.id ?? null,
           userName: user?.name ?? "Desconhecido",
-          message: body.message.trim(),
+          message: message || "",
+          imageUrl,
         },
       });
 
@@ -459,7 +486,7 @@ export async function panelRoutes(app: FastifyInstance) {
         action: "task.comment_added",
         entity: "task",
         entityId: id,
-        details: { commentId: comment.id, message: comment.message },
+        details: { commentId: comment.id, message: comment.message, hasImage: !!imageUrl },
       });
 
       return reply.status(201).send(comment);

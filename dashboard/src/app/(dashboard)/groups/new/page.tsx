@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { getFieldLabel, formatCurrency, parseCurrency } from "@/lib/field-labels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -330,13 +331,13 @@ export default function NewGroupPage() {
                       <div className="flex gap-2 items-center">
                         <select className="flex-1 h-9 rounded-xl border border-border/60 bg-transparent px-3 text-sm" value={filter.field}
                           onChange={(e) => updateFilter(i, "field", e.target.value)}>
-                          {AVAILABLE_FIELDS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+                          {AVAILABLE_FIELDS.map((f) => <option key={f.value} value={f.value}>{getFieldLabel(f.value)}</option>)}
                         </select>
                         <select className="h-9 rounded-xl border border-border/60 bg-transparent px-3 text-sm" value={filter.operator}
                           onChange={(e) => updateFilter(i, "operator", e.target.value)}>
                           {OPERATORS.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
                         </select>
-                        <Input placeholder="Valor" value={filter.value} onChange={(e) => updateFilter(i, "value", e.target.value)} className="flex-1 h-9 rounded-xl" />
+                        <Input placeholder="0,00" value={filter.value ? formatCurrency(String(Math.round(Number(filter.value) * 100))) : ""} onChange={(e) => updateFilter(i, "value", parseCurrency(e.target.value))} className="flex-1 h-9 rounded-xl" />
                         <button onClick={() => removeFilter(i)} className="p-2 text-muted-foreground hover:text-destructive rounded-lg hover:bg-destructive/10"><X className="h-3.5 w-3.5" /></button>
                       </div>
                     </div>
@@ -349,7 +350,7 @@ export default function NewGroupPage() {
                   {triggerFilters.length > 0 && (
                     <div className="rounded-xl bg-muted/50 p-3">
                       <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Preview</p>
-                      <p className="text-sm font-mono text-foreground">{triggerFilters.map((f, i) => `${AVAILABLE_FIELDS.find((af) => af.value === f.field)?.label || f.field} ${opLabel(f.operator)} ${f.value || "?"}${i < triggerFilters.length - 1 ? ` ${f.logicGate || "AND"} ` : ""}`).join("")}</p>
+                      <p className="text-sm font-mono text-foreground">{triggerFilters.map((f, i) => `${getFieldLabel(f.field)} ${opLabel(f.operator)} ${f.value ? formatCurrency(String(Math.round(Number(f.value) * 100))) : "?"}${i < triggerFilters.length - 1 ? ` ${f.logicGate || "AND"} ` : ""}`).join("")}</p>
                     </div>
                   )}
                 </div>
@@ -410,7 +411,7 @@ export default function NewGroupPage() {
                 {!noLimit && triggerFilters.length > 0 && (
                   <div className="rounded-xl bg-muted/30 p-3">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Condicoes</p>
-                    <p className="text-sm font-mono">{triggerFilters.map((f, i) => `${AVAILABLE_FIELDS.find((af) => af.value === f.field)?.label || f.field} ${opLabel(f.operator)} ${f.value}${i < triggerFilters.length - 1 ? ` ${f.logicGate || "AND"} ` : ""}`).join("")}</p>
+                    <p className="text-sm font-mono">{triggerFilters.map((f, i) => `${getFieldLabel(f.field)} ${opLabel(f.operator)} ${f.value ? formatCurrency(String(Math.round(Number(f.value) * 100))) : "?"}${i < triggerFilters.length - 1 ? ` ${f.logicGate || "AND"} ` : ""}`).join("")}</p>
                   </div>
                 )}
 

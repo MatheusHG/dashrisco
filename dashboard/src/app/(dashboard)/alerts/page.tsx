@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
+import { getFieldLabel, formatCurrency } from "@/lib/field-labels";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -260,8 +261,8 @@ function AlertCard({
               <div className="rounded bg-muted px-2.5 py-1.5 text-xs font-mono text-muted-foreground">
                 {alert.filters.map((f, i) => (
                   <span key={i}>
-                    <span className="text-primary">{f.field}</span>{" "}
-                    {operatorLabel(f.operator)} {f.value}
+                    <span className="text-primary">{getFieldLabel(f.field)}</span>{" "}
+                    {operatorLabel(f.operator)} {f.value ? formatCurrency(String(Math.round(Number(f.value) * 100))) : "?"}
                     {i < alert.filters.length - 1 && (
                       <span className="mx-1 font-semibold">
                         {f.logicGate || "AND"}

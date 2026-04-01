@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { getFieldLabel, formatCurrency, parseCurrency } from "@/lib/field-labels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -290,7 +291,7 @@ export default function NewAlertPage() {
                 {availableFields.map((field) => (
                   <label key={field.name} className={`flex items-center gap-2 rounded-xl border p-3 text-sm cursor-pointer transition-all ${selectedFields.includes(field.name) ? "border-primary bg-primary/10" : "border-border/50 hover:bg-muted/50"}`}>
                     <input type="checkbox" checked={selectedFields.includes(field.name)} onChange={() => setSelectedFields((p) => p.includes(field.name) ? p.filter((f) => f !== field.name) : [...p, field.name])} className="h-3.5 w-3.5 accent-primary" />
-                    <div><p className="font-medium text-xs">{field.name}</p><p className="text-[10px] text-muted-foreground">{field.type} — {field.example}</p></div>
+                    <div><p className="font-medium text-xs">{getFieldLabel(field.name)}</p><p className="text-[10px] text-muted-foreground">{field.name} — {field.example}</p></div>
                   </label>
                 ))}
               </div>
@@ -317,12 +318,12 @@ export default function NewAlertPage() {
                   )}
                   <div className="flex gap-2 items-center">
                     <select className="flex-1 h-9 rounded-xl border border-border/60 bg-transparent px-3 text-sm" value={filter.field} onChange={(e) => { const u = [...filters]; u[i] = { ...u[i]!, field: e.target.value }; setFilters(u); }}>
-                      {selectedFields.map((f) => <option key={f} value={f}>{f}</option>)}
+                      {selectedFields.map((f) => <option key={f} value={f}>{getFieldLabel(f)}</option>)}
                     </select>
                     <select className="h-9 rounded-xl border border-border/60 bg-transparent px-3 text-sm" value={filter.operator} onChange={(e) => { const u = [...filters]; u[i] = { ...u[i]!, operator: e.target.value }; setFilters(u); }}>
                       {OPERATORS.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
                     </select>
-                    <Input placeholder="Valor" value={filter.value} onChange={(e) => { const u = [...filters]; u[i] = { ...u[i]!, value: e.target.value }; setFilters(u); }} className="flex-1 h-9 rounded-xl" />
+                    <Input placeholder="0,00" value={filter.value ? formatCurrency(String(Math.round(Number(filter.value) * 100))) : ""} onChange={(e) => { const u = [...filters]; u[i] = { ...u[i]!, value: parseCurrency(e.target.value) }; setFilters(u); }} className="flex-1 h-9 rounded-xl" />
                     <button onClick={() => setFilters(filters.filter((_, j) => j !== i))} className="p-2 text-muted-foreground hover:text-destructive rounded-lg hover:bg-destructive/10"><X className="h-3.5 w-3.5" /></button>
                   </div>
                 </div>
@@ -335,7 +336,7 @@ export default function NewAlertPage() {
               {filters.length > 0 && (
                 <div className="rounded-xl bg-muted/50 p-3">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Preview</p>
-                  <p className="text-sm font-mono text-foreground">{filters.map((f, i) => `${f.field} ${opLabel(f.operator)} ${f.value || "?"}${i < filters.length - 1 ? ` ${f.logicGate || "AND"} ` : ""}`).join("")}</p>
+                  <p className="text-sm font-mono text-foreground">{filters.map((f, i) => `${getFieldLabel(f.field)} ${opLabel(f.operator)} ${f.value ? formatCurrency(String(Math.round(Number(f.value) * 100))) : "?"}${i < filters.length - 1 ? ` ${f.logicGate || "AND"} ` : ""}`).join("")}</p>
                 </div>
               )}
               <Nav back={5} next={7} />
@@ -439,7 +440,7 @@ export default function NewAlertPage() {
                               <select className="h-9 rounded-xl border border-border/60 bg-transparent px-3 text-sm" value={cond.operator} onChange={(e) => { const u = [...queryConditions]; u[i] = { ...u[i]!, operator: e.target.value }; setQueryConditions(u); }}>
                                 {OPERATORS.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
                               </select>
-                              <Input placeholder="Valor" value={cond.value} onChange={(e) => { const u = [...queryConditions]; u[i] = { ...u[i]!, value: e.target.value }; setQueryConditions(u); }} className="flex-1 h-9 rounded-xl" />
+                              <Input placeholder="0,00" value={cond.value ? formatCurrency(String(Math.round(Number(cond.value) * 100))) : ""} onChange={(e) => { const u = [...queryConditions]; u[i] = { ...u[i]!, value: parseCurrency(e.target.value) }; setQueryConditions(u); }} className="flex-1 h-9 rounded-xl" />
                               <button onClick={() => setQueryConditions(queryConditions.filter((_, j) => j !== i))} className="p-2 text-muted-foreground hover:text-destructive rounded-lg hover:bg-destructive/10"><X className="h-3.5 w-3.5" /></button>
                             </div>
                           </div>
@@ -492,7 +493,7 @@ export default function NewAlertPage() {
                 {filters.length > 0 && (
                   <div className="rounded-xl bg-muted/30 p-3">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Filtros Webhook</p>
-                    <p className="text-sm font-mono">{filters.map((f, i) => `${f.field} ${opLabel(f.operator)} ${f.value}${i < filters.length - 1 ? ` ${f.logicGate || "AND"} ` : ""}`).join("")}</p>
+                    <p className="text-sm font-mono">{filters.map((f, i) => `${getFieldLabel(f.field)} ${opLabel(f.operator)} ${f.value ? formatCurrency(String(Math.round(Number(f.value) * 100))) : "?"}${i < filters.length - 1 ? ` ${f.logicGate || "AND"} ` : ""}`).join("")}</p>
                   </div>
                 )}
 
@@ -553,7 +554,7 @@ export default function NewAlertPage() {
               <div className="flex items-start justify-between group cursor-pointer rounded-lg p-2 -mx-2 hover:bg-muted" onClick={() => setStep(5)}>
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Campos ({selectedFields.length})</p>
-                  {selectedFields.length > 0 ? <div className="flex flex-wrap gap-1 mt-1">{selectedFields.slice(0, 3).map((f) => <Badge key={f} variant="outline" className="text-[9px]">{f}</Badge>)}{selectedFields.length > 3 && <Badge variant="outline" className="text-[9px]">+{selectedFields.length - 3}</Badge>}</div> : <span className="text-muted-foreground italic text-xs">—</span>}
+                  {selectedFields.length > 0 ? <div className="flex flex-wrap gap-1 mt-1">{selectedFields.slice(0, 3).map((f) => <Badge key={f} variant="outline" className="text-[9px]">{getFieldLabel(f)}</Badge>)}{selectedFields.length > 3 && <Badge variant="outline" className="text-[9px]">+{selectedFields.length - 3}</Badge>}</div> : <span className="text-muted-foreground italic text-xs">—</span>}
                 </div>
                 <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 mt-1" />
               </div>
@@ -561,7 +562,7 @@ export default function NewAlertPage() {
               <div className="flex items-start justify-between group cursor-pointer rounded-lg p-2 -mx-2 hover:bg-muted" onClick={() => setStep(6)}>
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Filtros ({filters.length})</p>
-                  {filters.length > 0 ? <p className="text-[10px] font-mono text-muted-foreground mt-0.5">{filters.map((f, i) => `${f.field} ${opLabel(f.operator)} ${f.value || "?"}${i < filters.length - 1 ? ` ${f.logicGate || "AND"} ` : ""}`).join("")}</p> : <span className="text-muted-foreground italic text-xs">Nenhum</span>}
+                  {filters.length > 0 ? <p className="text-[10px] font-mono text-muted-foreground mt-0.5">{filters.map((f, i) => `${getFieldLabel(f.field)} ${opLabel(f.operator)} ${f.value ? formatCurrency(String(Math.round(Number(f.value) * 100))) : "?"}${i < filters.length - 1 ? ` ${f.logicGate || "AND"} ` : ""}`).join("")}</p> : <span className="text-muted-foreground italic text-xs">Nenhum</span>}
                 </div>
                 <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 mt-1" />
               </div>

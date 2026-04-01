@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback, useRef, type DragEvent } from "react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
+import { getFieldLabel } from "@/lib/field-labels";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -36,6 +38,9 @@ import {
   Image,
   File,
   Loader2,
+  Bold,
+  Italic,
+  Underline,
 } from "lucide-react";
 
 // ═══════════════════════════════════════
@@ -60,7 +65,7 @@ const PRIORITY_STYLES: Record<number, { label: string; bg: string; text: string;
   4: { label: "Baixa", bg: "bg-zinc-500/10", text: "text-zinc-500", icon: ArrowDown },
 };
 
-interface TaskComment { id: string; userId: string | null; userName: string; message: string; createdAt: string; }
+interface TaskComment { id: string; userId: string | null; userName: string; message: string; imageUrl: string | null; createdAt: string; }
 interface TaskAttachment { id: string; fileName: string; fileType: string; fileSize: number; filePath: string; createdAt: string; }
 interface PanelTaskItem { id: string; title: string; description: string | null; status: string; priority: number; data: Record<string, unknown> | null; assignedTo: string | null; completedBy: string | null; createdAt: string; updatedAt: string; _count?: { comments: number }; }
 interface TaskDetail extends PanelTaskItem { comments: TaskComment[]; attachments: TaskAttachment[]; assignedUser: { id: string; name: string } | null; completedByUser: { id: string; name: string } | null; allUsers: { id: string; name: string }[]; }
@@ -75,6 +80,25 @@ function formatValue(key: string, value: unknown): string {
   if ((key.includes("value") || key.includes("credits")) && typeof value === "number")
     return `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
   return String(value);
+}
+
+/** Parseia **negrito**, *italico* e __sublinhado__ para JSX */
+function parseFormatted(text: string): React.ReactNode[] {
+  // Ordem: negrito primeiro, depois italico, depois sublinhado
+  const parts: React.ReactNode[] = [];
+  const regex = /(\*\*(.+?)\*\*|\*(.+?)\*|__(.+?)__)/g;
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
+    if (match[2]) parts.push(<strong key={key++}>{match[2]}</strong>);
+    else if (match[3]) parts.push(<em key={key++}>{match[3]}</em>);
+    else if (match[4]) parts.push(<u key={key++}>{match[4]}</u>);
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts.length > 0 ? parts : [text];
 }
 
 function formatTime(dateStr: string) {
@@ -114,13 +138,13 @@ function UserAvatar({ name, size = "sm" }: { name: string; size?: "sm" | "md" })
 // TIMELINE: merges comments + history
 // ═══════════════════════════════════════
 type TimelineItem =
-  | { kind: "comment"; id: string; userName: string; message: string; createdAt: string; commentId: string }
+  | { kind: "comment"; id: string; userName: string; message: string; imageUrl: string | null; createdAt: string; commentId: string }
   | { kind: "event"; id: string; action: string; details: Record<string, unknown> | null; userName: string; createdAt: string };
 
 function buildTimeline(comments: TaskComment[], history: HistoryEntry[]): TimelineItem[] {
   const items: TimelineItem[] = [];
   for (const c of comments) {
-    items.push({ kind: "comment", id: `c-${c.id}`, userName: c.userName, message: c.message, createdAt: c.createdAt, commentId: c.id });
+    items.push({ kind: "comment", id: `c-${c.id}`, userName: c.userName, message: c.message, imageUrl: c.imageUrl, createdAt: c.createdAt, commentId: c.id });
   }
   for (const h of history) {
     items.push({ kind: "event", id: `h-${h.id}`, action: h.action, details: h.details, userName: h.user?.name ?? "Sistema", createdAt: h.createdAt });
@@ -168,7 +192,11 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState("");
+  const [commentImage, setCommentImage] = useState<globalThis.File | null>(null);
+  const [commentImagePreview, setCommentImagePreview] = useState<string | null>(null);
   const [sendingComment, setSendingComment] = useState(false);
+  const commentFileRef = useRef<HTMLInputElement>(null);
+  const commentTextRef = useRef<HTMLTextAreaElement>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [editingDesc, setEditingDesc] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
@@ -216,14 +244,59 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
   };
 
   const addComment = async () => {
-    if (!newComment.trim() || sendingComment) return;
+    if ((!newComment.trim() && !commentImage) || sendingComment) return;
     setSendingComment(true);
     try {
-      await api.fetch(`/panel/tasks/${taskId}/comments`, { method: "POST", body: JSON.stringify({ message: newComment.trim() }) });
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
+      if (commentImage) {
+        const formData = new FormData();
+        formData.append("message", newComment.trim());
+        formData.append("image", commentImage);
+        await fetch(`${apiUrl}/panel/tasks/${taskId}/comments`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${api.getAccessToken()}` },
+          body: formData,
+        });
+      } else {
+        await api.fetch(`/panel/tasks/${taskId}/comments`, { method: "POST", body: JSON.stringify({ message: newComment.trim() }) });
+      }
       setNewComment("");
+      setCommentImage(null);
+      setCommentImagePreview(null);
       await fetchTask();
     } catch (err) { console.error(err); }
     finally { setSendingComment(false); }
+  };
+
+  const handleCommentImage = (file: globalThis.File) => {
+    if (!file.type.startsWith("image/")) return;
+    setCommentImage(file);
+    const reader = new FileReader();
+    reader.onload = () => setCommentImagePreview(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const removeCommentImage = () => {
+    setCommentImage(null);
+    setCommentImagePreview(null);
+  };
+
+  const wrapSelection = (prefix: string, suffix: string) => {
+    const el = commentTextRef.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const text = newComment;
+    const selected = text.slice(start, end);
+    const before = text.slice(0, start);
+    const after = text.slice(end);
+    if (selected) {
+      setNewComment(before + prefix + selected + suffix + after);
+      setTimeout(() => { el.focus(); el.setSelectionRange(start + prefix.length, end + prefix.length); }, 0);
+    } else {
+      setNewComment(before + prefix + suffix + after);
+      setTimeout(() => { el.focus(); el.setSelectionRange(start + prefix.length, start + prefix.length); }, 0);
+    }
   };
 
   const deleteComment = async (commentId: string) => {
@@ -398,7 +471,7 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
                   <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 p-3 rounded-lg bg-muted/30">
                     {dataEntries.map(([key, value]) => (
                       <div key={key}>
-                        <p className="text-[10px] text-muted-foreground truncate">{key}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{getFieldLabel(key)}</p>
                         <p className="text-xs font-medium truncate text-foreground">{formatValue(key, value)}</p>
                       </div>
                     ))}
@@ -549,22 +622,92 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
               {/* Comment input at top */}
               <div className="flex gap-3 mb-4">
                 <UserAvatar name="U" size="md" />
-                <div className="flex-1 relative">
-                  <textarea
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    placeholder="Escrever comentario..."
-                    rows={1}
-                    className="w-full rounded-lg border border-input bg-muted/30 px-3 py-2.5 pr-10 text-sm resize-none focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none transition-all"
-                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); addComment(); } }}
-                  />
-                  <button
-                    onClick={addComment}
-                    disabled={!newComment.trim() || sendingComment}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-primary hover:bg-primary/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
-                  >
-                    <Send className="h-4 w-4" />
-                  </button>
+                <div className="flex-1">
+                  <div className="rounded-lg border border-input bg-muted/30 focus-within:ring-2 focus-within:ring-primary/30 focus-within:border-primary transition-all">
+                    {/* Formatting toolbar */}
+                    <div className="flex items-center gap-0.5 px-2 pt-1.5 border-b border-border/50 pb-1">
+                      <button type="button" onClick={() => wrapSelection("**", "**")} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Negrito (Ctrl+B)"><Bold className="h-3.5 w-3.5" /></button>
+                      <button type="button" onClick={() => wrapSelection("*", "*")} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Italico (Ctrl+I)"><Italic className="h-3.5 w-3.5" /></button>
+                      <button type="button" onClick={() => wrapSelection("__", "__")} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Sublinhado (Ctrl+U)"><Underline className="h-3.5 w-3.5" /></button>
+                    </div>
+                    <textarea
+                      ref={commentTextRef}
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder={commentImage ? "Adicionar legenda (opcional)..." : "Escrever comentario ou colar imagem (Ctrl+V)..."}
+                      rows={2}
+                      className="w-full bg-transparent px-3 py-2 text-sm resize-none outline-none min-h-[52px]"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); addComment(); }
+                        if (e.ctrlKey || e.metaKey) {
+                          if (e.key === "b") { e.preventDefault(); wrapSelection("**", "**"); }
+                          if (e.key === "i") { e.preventDefault(); wrapSelection("*", "*"); }
+                          if (e.key === "u") { e.preventDefault(); wrapSelection("__", "__"); }
+                        }
+                      }}
+                      onPaste={(e) => {
+                        const items = e.clipboardData?.items;
+                        if (!items) return;
+                        for (const item of Array.from(items)) {
+                          if (item.type.startsWith("image/")) {
+                            e.preventDefault();
+                            const file = item.getAsFile();
+                            if (file) handleCommentImage(file);
+                            return;
+                          }
+                        }
+                      }}
+                    />
+                    {/* Image preview */}
+                    {commentImagePreview && (
+                      <div className="px-3 pb-2">
+                        <div className="relative inline-block rounded-lg overflow-hidden border border-border">
+                          <img src={commentImagePreview} alt="Preview" className="max-h-32 max-w-full object-contain" />
+                          <button
+                            onClick={removeCommentImage}
+                            className="absolute top-1 right-1 p-0.5 rounded-md bg-black/60 text-white hover:bg-destructive transition-colors"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {/* Actions bar */}
+                    <div className="flex items-center justify-between px-2 pb-1.5">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => commentFileRef.current?.click()}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                          title="Anexar imagem"
+                        >
+                          <Image className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { const input = document.createElement("input"); input.type = "file"; input.accept = ".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"; input.onchange = (e) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) uploadAttachment(f); }; input.click(); }}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                          title="Anexar arquivo"
+                        >
+                          <Paperclip className="h-4 w-4" />
+                        </button>
+                        <input
+                          ref={commentFileRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCommentImage(f); e.target.value = ""; }}
+                        />
+                      </div>
+                      <button
+                        onClick={addComment}
+                        disabled={(!newComment.trim() && !commentImage) || sendingComment}
+                        className="p-1.5 rounded-md text-primary hover:bg-primary/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                      >
+                        {sendingComment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -595,7 +738,15 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
                                   <Trash2 className="h-3 w-3" />
                                 </button>
                               </div>
-                              <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{item.message}</p>
+                              {item.message && <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{parseFormatted(item.message)}</p>}
+                              {item.imageUrl && (
+                                <img
+                                  src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002"}/uploads/${item.imageUrl}`}
+                                  alt="Imagem do comentario"
+                                  className="mt-2 max-h-48 rounded-lg border border-border cursor-pointer hover:opacity-90 transition-opacity"
+                                  onClick={(e) => { e.stopPropagation(); setPreviewImage(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002"}/uploads/${item.imageUrl}`); }}
+                                />
+                              )}
                             </div>
                           </div>
                         </div>
@@ -749,6 +900,9 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
 // MAIN PAGE (KANBAN)
 // ═══════════════════════════════════════
 export default function PanelTasksPage() {
+  const { user: currentUser, hasPermission } = useAuth();
+  const isAdmin = hasPermission("users:manage");
+
   const [tasks, setTasks] = useState<PanelTaskItem[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -757,9 +911,9 @@ export default function PanelTasksPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [completedBy, setCompletedBy] = useState("");
+  const [assignedTo, setAssignedTo] = useState<string>(isAdmin ? "" : currentUser?.id ?? "");
   const [showFilters, setShowFilters] = useState(true);
-  const hasFilters = startDate || endDate || completedBy;
+  const hasFilters = startDate || endDate || assignedTo;
 
   const fetchTasks = useCallback(async () => {
     setLoading(true);
@@ -767,13 +921,13 @@ export default function PanelTasksPage() {
       const params = new URLSearchParams({ limit: "200" });
       if (startDate) params.set("startDate", startDate);
       if (endDate) params.set("endDate", endDate);
-      if (completedBy) params.set("completedBy", completedBy);
+      if (assignedTo) params.set("assignedTo", assignedTo);
       const data = await api.fetch<{ tasks: PanelTaskItem[]; users: UserOption[] }>(`/panel/tasks?${params}`);
       setTasks(data.tasks);
       setUsers(data.users);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
-  }, [startDate, endDate, completedBy]);
+  }, [startDate, endDate, assignedTo]);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
@@ -823,12 +977,12 @@ export default function PanelTasksPage() {
             <div className="space-y-1"><Label className="text-xs">Fim</Label><Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-40 h-8 text-sm" /></div>
             <div className="space-y-1">
               <Label className="text-xs">Responsavel</Label>
-              <select className="flex h-8 rounded-md border border-input bg-transparent px-3 text-sm text-foreground" value={completedBy} onChange={(e) => setCompletedBy(e.target.value)}>
+              <select className="flex h-8 rounded-md border border-input bg-transparent px-3 text-sm text-foreground" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>
                 <option value="">Todos</option>
                 {users.map((u) => (<option key={u.id} value={u.id}>{u.name}</option>))}
               </select>
             </div>
-            {hasFilters && <Button variant="ghost" size="sm" onClick={() => { setStartDate(""); setEndDate(""); setCompletedBy(""); }}><X className="h-4 w-4" /> Limpar</Button>}
+            {hasFilters && <Button variant="ghost" size="sm" onClick={() => { setStartDate(""); setEndDate(""); setAssignedTo(isAdmin ? "" : currentUser?.id ?? ""); }}><X className="h-4 w-4" /> Limpar</Button>}
           </CardContent>
         </Card>
       )}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
+import { getFieldLabel } from "@/lib/field-labels";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,29 +50,6 @@ const keyFields: Record<string, string[]> = {
   SPORT_PRIZE: ["user_name", "bet_value", "bet_return_value", "bet_odds", "bet_events_count"],
   SPORT_BET: ["user_name", "bet_value", "bet_return_value", "bet_odds", "bet_events_count"],
   LOGIN: ["user_name", "user_email", "login_ip"],
-};
-
-const fieldLabels: Record<string, string> = {
-  user_name: "Usuario",
-  user_username: "Username",
-  user_email: "Email",
-  user_cpf: "CPF",
-  user_contact: "Contato",
-  withdraw_value: "Valor do Saque",
-  withdraw_status: "Status",
-  withdraw_pix_type: "Tipo PIX",
-  deposit_value: "Valor do Deposito",
-  deposit_status: "Status",
-  deposit_method: "Metodo",
-  casino_game_name: "Jogo",
-  casino_provider: "Provedor",
-  casino_bet_value: "Valor Aposta",
-  casino_prize_value: "Valor Premio",
-  bet_value: "Valor Aposta",
-  bet_return_value: "Retorno",
-  bet_odds: "Odds",
-  bet_events_count: "Eventos",
-  login_ip: "IP",
 };
 
 interface AlertConfigOption {
@@ -346,7 +324,7 @@ export default function PanelAlertsPage() {
                         return (
                           <div key={fieldKey}>
                             <p className="text-[11px] text-muted-foreground">
-                              {fieldLabels[fieldKey] || fieldKey}
+                              {getFieldLabel(fieldKey)}
                             </p>
                             <p className="text-sm font-medium text-foreground truncate">
                               {formatValue(fieldKey, value)}
@@ -390,7 +368,7 @@ export default function PanelAlertsPage() {
                           .map(([key, value]) => (
                             <div key={key}>
                               <p className="text-[11px] text-muted-foreground">
-                                {fieldLabels[key] || key}
+                                {getFieldLabel(key)}
                               </p>
                               <p className="text-sm text-foreground break-all">
                                 {formatValue(key, value)}

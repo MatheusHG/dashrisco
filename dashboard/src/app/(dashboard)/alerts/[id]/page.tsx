@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { getFieldLabel, formatCurrency } from "@/lib/field-labels";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -293,7 +294,7 @@ export default function AlertDetailPage() {
             <div className="flex flex-wrap gap-1">
               {alert.selectedFields.map((field) => (
                 <Badge key={field} variant="outline" className="text-[10px]">
-                  {field}
+                  {getFieldLabel(field)}
                 </Badge>
               ))}
             </div>
@@ -322,12 +323,12 @@ export default function AlertDetailPage() {
                 <div key={f.id} className="flex items-center gap-2">
                   <div className="flex items-center gap-1 rounded-lg bg-muted px-3 py-1.5">
                     <span className="text-sm font-medium text-primary">
-                      {f.field}
+                      {getFieldLabel(f.field)}
                     </span>
                     <span className="text-sm font-bold">
                       {operatorLabels[f.operator] || f.operator}
                     </span>
-                    <span className="text-sm font-medium">{f.value}</span>
+                    <span className="text-sm font-medium">{f.value ? formatCurrency(String(Math.round(Number(f.value) * 100))) : "?"}</span>
                   </div>
                   {i < alert.filters.length - 1 && (
                     <Badge variant="secondary" className="text-xs">
@@ -372,6 +373,20 @@ export default function AlertDetailPage() {
                   (item.data.user_username as string) ||
                   "-";
 
+                // Valor principal baseado no tipo de webhook
+                const mainValue = (() => {
+                  const d = item.data;
+                  const fmt = (v: unknown) => v ? `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : null;
+                  switch (alert.webhookType) {
+                    case "WITHDRAWAL_CONFIRMATION": return fmt(d.withdraw_value);
+                    case "DEPOSIT": return fmt(d.deposit_value);
+                    case "SPORT_BET": case "CASINO_BET": return fmt(d.bet_value ?? d.casino_bet_value);
+                    case "SPORT_PRIZE": return fmt(d.bet_return_value);
+                    case "CASINO_PRIZE": return fmt(d.casino_prize_value);
+                    default: return null;
+                  }
+                })();
+
                 return (
                   <div
                     key={item.id}
@@ -389,6 +404,11 @@ export default function AlertDetailPage() {
                           <span className="text-sm font-medium">
                             {userName}
                           </span>
+                          {mainValue && (
+                            <span className="text-sm font-semibold text-primary">
+                              {mainValue}
+                            </span>
+                          )}
                           <span className="text-xs text-muted-foreground">
                             {new Date(item.createdAt).toLocaleString("pt-BR")}
                           </span>
@@ -413,7 +433,7 @@ export default function AlertDetailPage() {
                             .map(([key, value]) => (
                               <div key={key}>
                                 <p className="text-[11px] text-muted-foreground">
-                                  {key}
+                                  {getFieldLabel(key)}
                                 </p>
                                 <p className="text-sm font-medium break-all">
                                   {formatValue(key, value)}
