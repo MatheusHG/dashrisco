@@ -7,6 +7,8 @@ import { webhookTypeLabels } from "@/lib/field-labels";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Bell, Users, Lock, ListTodo, CheckCircle, AlertTriangle, Activity,
   TrendingUp, Clock, ArrowRight, Zap, Settings, Monitor,
@@ -136,11 +138,21 @@ export default function MonitoringPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [showConfig, setShowConfig] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [visible, setVisible] = useState<string[]>(DEFAULT_VISIBLE);
   const [layouts, setLayouts] = useState<Layout[]>(buildLayouts(DEFAULT_VISIBLE));
 
   useEffect(() => { if (!user?.id) return; const c = loadConfig(user.id); if (c) { setVisible(c.visible); setLayouts(c.layouts); } }, [user?.id]);
-  useEffect(() => { api.fetch<Stats>("/dashboard/stats").then(setStats).catch(console.error); }, []);
+
+  const fetchStats = useCallback(() => {
+    const params = new URLSearchParams();
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+    api.fetch<Stats>(`/dashboard/stats?${params}`).then(setStats).catch(console.error);
+  }, [startDate, endDate]);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
 
   const onLayoutChange = useCallback((nl: Layout[]) => { setLayouts(nl); if (user?.id) saveConfig(user.id, visible, nl); }, [user?.id, visible]);
   const toggleWidget = useCallback((id: string) => {
@@ -202,6 +214,21 @@ export default function MonitoringPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mr-2">
+            <div className="flex items-center gap-1.5">
+              <Label className="text-[10px] text-muted-foreground shrink-0">De</Label>
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-36 h-8 text-xs rounded-lg" />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Label className="text-[10px] text-muted-foreground shrink-0">Ate</Label>
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-36 h-8 text-xs rounded-lg" />
+            </div>
+            {(startDate || endDate) && (
+              <Button variant="ghost" size="sm" className="h-8 px-2 rounded-lg text-xs" onClick={() => { setStartDate(""); setEndDate(""); }}>
+                <X className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
           <Button variant={editing ? "default" : "outline"} size="sm" className="rounded-xl gap-1.5" onClick={() => setEditing(!editing)}>
             {editing ? <><CheckCircle className="h-3.5 w-3.5" />Pronto</> : <><GripVertical className="h-3.5 w-3.5" />Editar Layout</>}
           </Button>
@@ -211,33 +238,42 @@ export default function MonitoringPage() {
         </div>
       </div>
 
-      {/* Widget config panel */}
+      {/* Widget config sidebar */}
       {showConfig && (
-        <Card className="rounded-2xl border-border/50 shadow-sm">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div><p className="text-sm font-semibold">Configurar Widgets</p><p className="text-xs text-muted-foreground">Selecione quais widgets exibir no seu painel</p></div>
+        <>
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 animate-in fade-in duration-200" onClick={() => setShowConfig(false)} />
+          <div className="fixed top-0 right-0 h-full w-[420px] max-w-[90vw] bg-card border-l border-border shadow-2xl z-50 animate-in slide-in-from-right duration-300 flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Configurar Widgets</p>
+                <p className="text-xs text-muted-foreground">{visible.length} de {WIDGET_CATALOG.length} ativos</p>
+              </div>
               <div className="flex items-center gap-2">
                 <Button variant="ghost" size="sm" className="rounded-lg gap-1 text-xs" onClick={resetLayout}><RotateCcw className="h-3 w-3" /> Resetar</Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowConfig(false)}><X className="h-4 w-4" /></Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowConfig(false)}><X className="h-4 w-4" /></Button>
               </div>
             </div>
-            <div className="space-y-4">
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
               {Array.from(categories.entries()).map(([cat, widgets]) => (
                 <div key={cat}>
                   <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">{cat}</p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                  <div className="space-y-1.5">
                     {widgets.map((w) => {
                       const active = visible.includes(w.id);
                       const Icon = w.icon;
                       return (
                         <button key={w.id} onClick={() => toggleWidget(w.id)}
-                          className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-all ${active ? "border-primary bg-primary/5" : "border-border/50 hover:bg-muted/50 opacity-60"}`}>
-                          <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${active ? "bg-primary/10" : "bg-muted"}`}>
+                          className={`flex items-center gap-3 w-full rounded-xl border p-3 text-left transition-all ${active ? "border-primary bg-primary/5" : "border-border/50 hover:bg-muted/50 opacity-60"}`}>
+                          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${active ? "bg-primary/10" : "bg-muted"}`}>
                             <Icon className={`h-4 w-4 ${active ? "text-primary" : "text-muted-foreground"}`} />
                           </div>
-                          <div className="flex-1 min-w-0"><p className="text-xs font-medium truncate">{w.label}</p><p className="text-[10px] text-muted-foreground truncate">{w.description}</p></div>
-                          {active ? <Eye className="h-3.5 w-3.5 text-primary shrink-0" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium">{w.label}</p>
+                            <p className="text-[10px] text-muted-foreground">{w.description}</p>
+                          </div>
+                          {active ? <Eye className="h-4 w-4 text-primary shrink-0" /> : <EyeOff className="h-4 w-4 text-muted-foreground shrink-0" />}
                         </button>
                       );
                     })}
@@ -245,8 +281,8 @@ export default function MonitoringPage() {
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </>
       )}
 
       {editing && <p className="text-xs text-muted-foreground text-center animate-pulse">Arraste para reposicionar e redimensione pelos cantos</p>}

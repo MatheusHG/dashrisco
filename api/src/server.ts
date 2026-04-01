@@ -118,49 +118,57 @@ async function start() {
       return reply.status(401).send({ error: "Unauthorized" });
     }
 
+    const query = request.query as { startDate?: string; endDate?: string };
+
     const now = new Date();
+    // Se tem filtro de data, usa; senão usa o padrão (última semana)
+    const hasDateFilter = query.startDate || query.endDate;
+    const rangeStart = query.startDate ? new Date(query.startDate) : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const rangeEnd = query.endDate ? (() => { const d = new Date(query.endDate!); d.setUTCHours(23, 59, 59, 999); return d; })() : now;
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const prevWeek = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+    const dateFilter = { createdAt: { gte: rangeStart, lte: rangeEnd } };
 
     const [
       alertsActive, alertsTriggered24h, groupsActive, usersCount, tasksOpen, tasksDone,
       alertsThisWeek, alertsPrevWeek, tasksInProgress,
     ] = await Promise.all([
       prisma.alertConfig.count({ where: { active: true } }),
-      prisma.panelAlert.count({ where: { createdAt: { gte: yesterday } } }),
+      prisma.panelAlert.count({ where: hasDateFilter ? dateFilter : { createdAt: { gte: yesterday } } }),
       prisma.lockGroup.count({ where: { active: true } }),
       prisma.user.count({ where: { active: true } }),
-      prisma.panelTask.count({ where: { status: "open" } }),
-      prisma.panelTask.count({ where: { status: "done" } }),
-      prisma.panelAlert.count({ where: { createdAt: { gte: weekAgo } } }),
-      prisma.panelAlert.count({ where: { createdAt: { gte: prevWeek, lt: weekAgo } } }),
-      prisma.panelTask.count({ where: { status: "in_progress" } }),
+      prisma.panelTask.count({ where: hasDateFilter ? { status: "open", ...dateFilter } : { status: "open" } }),
+      prisma.panelTask.count({ where: hasDateFilter ? { status: "done", ...dateFilter } : { status: "done" } }),
+      prisma.panelAlert.count({ where: hasDateFilter ? dateFilter : { createdAt: { gte: weekAgo } } }),
+      prisma.panelAlert.count({ where: hasDateFilter ? { createdAt: { gte: new Date(rangeStart.getTime() - (rangeEnd.getTime() - rangeStart.getTime())), lt: rangeStart } } : { createdAt: { gte: prevWeek, lt: weekAgo } } }),
+      prisma.panelTask.count({ where: hasDateFilter ? { status: "in_progress", ...dateFilter } : { status: "in_progress" } }),
     ]);
 
-    // Alerts by day (last 7 days)
+    // Alerts by day
     const alertsByDay: Array<{ date: string; count: number }> = [];
-    const alerts7d = await prisma.panelAlert.findMany({
-      where: { createdAt: { gte: weekAgo } },
+    const alertsRange = await prisma.panelAlert.findMany({
+      where: hasDateFilter ? dateFilter : { createdAt: { gte: weekAgo } },
       select: { createdAt: true },
     });
     const dayMap = new Map<string, number>();
-    for (const a of alerts7d) {
+    for (const a of alertsRange) {
       const day = a.createdAt.toISOString().split("T")[0]!;
       dayMap.set(day, (dayMap.get(day) || 0) + 1);
     }
-    // Fill missing days
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(now.getTime() - i * 86400000);
+    const daysInRange = Math.max(1, Math.ceil((rangeEnd.getTime() - rangeStart.getTime()) / 86400000));
+    for (let i = daysInRange - 1; i >= 0; i--) {
+      const d = new Date(rangeEnd.getTime() - i * 86400000);
       const key = d.toISOString().split("T")[0]!;
       alertsByDay.push({ date: key, count: dayMap.get(key) || 0 });
     }
 
-    // Alerts by type (last 7 days)
+    // Alerts by type
     const alertsByType: Array<{ type: string; count: number }> = [];
     const typeMap = new Map<string, number>();
     for (const a of await prisma.panelAlert.findMany({
-      where: { createdAt: { gte: weekAgo } },
+      where: hasDateFilter ? dateFilter : { createdAt: { gte: weekAgo } },
       select: { webhookType: true },
     })) {
       typeMap.set(a.webhookType, (typeMap.get(a.webhookType) || 0) + 1);
@@ -170,6 +178,7 @@ async function start() {
 
     // Recent alerts (last 10)
     const recentAlerts = await prisma.panelAlert.findMany({
+      where: hasDateFilter ? dateFilter : {},
       orderBy: { createdAt: "desc" },
       take: 10,
       select: {
@@ -181,7 +190,7 @@ async function start() {
 
     // Recent tasks (last 5 open/in_progress)
     const recentTasks = await prisma.panelTask.findMany({
-      where: { status: { in: ["open", "in_progress"] } },
+      where: hasDateFilter ? { status: { in: ["open", "in_progress"] }, ...dateFilter } : { status: { in: ["open", "in_progress"] } },
       orderBy: { createdAt: "desc" },
       take: 5,
       select: { id: true, title: true, status: true, priority: true, createdAt: true, assignedTo: true },
@@ -197,7 +206,7 @@ async function start() {
     // Top alert configs (most triggered this week)
     const topConfigs = await prisma.panelAlert.groupBy({
       by: ["alertConfigId"],
-      where: { createdAt: { gte: weekAgo }, alertConfigId: { not: null } },
+      where: { ...(hasDateFilter ? dateFilter : { createdAt: { gte: weekAgo } }), alertConfigId: { not: null } },
       _count: true,
       orderBy: { _count: { alertConfigId: "desc" } },
       take: 5,
