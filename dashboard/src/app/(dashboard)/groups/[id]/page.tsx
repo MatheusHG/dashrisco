@@ -904,7 +904,7 @@ export default function GroupDetailPage() {
                 {events.map((event) => {
                   const isLockEvent = event.action === "locked";
                   const d = event.data;
-                  const betValue = d?.bet_value ?? d?.casino_bet_value;
+                  const betValue = (d?.bet_value ?? d?.casino_bet_value) as number | undefined;
                   const betType = d?.type as string | undefined;
                   const userName = (d?.user_name as string) || (d?.user_username as string);
                   const isExpanded = expandedEventId === event.id;
