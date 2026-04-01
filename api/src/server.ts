@@ -284,11 +284,8 @@ async function start() {
     const body = req.body as any;
     const eventType = body?.type;
 
-    console.log(`[WEBHOOK /webhook/ngx] type=${eventType} user=${body?.user_name || body?.login_username || "?"} body=`, JSON.stringify(body).slice(0, 500));
-
     // Alertas dinâmicos (AlertEngine + GroupLockEngine)
     const webhookType = resolveWebhookType(body);
-    console.log(`[WEBHOOK /webhook/ngx] resolved: ${eventType} -> ${webhookType || "IGNORADO"}`);
     if (webhookType) {
       try {
         await alertEngine.processWebhook(webhookType, body);
@@ -308,8 +305,6 @@ async function start() {
   // Endpoint com ID na URL
   app.post<{ Params: { id?: string } }>("/webhook/ngx/:id", async (req, reply) => {
     const { id } = req.params;
-    console.log(`[WEBHOOK /webhook/ngx/${id}] body=`, JSON.stringify(req.body).slice(0, 500));
-
     const payload = req as any;
     const items = Array.isArray(payload) ? payload : [payload];
 
@@ -318,11 +313,8 @@ async function start() {
       if (!event) continue;
 
       const eventType = event?.type;
-      console.log(`[WEBHOOK /webhook/ngx/${id}] item type=${eventType} user=${event?.user_name || event?.login_username || "?"}`);
-
       // Alertas dinâmicos
       const webhookType = resolveWebhookType(event);
-      console.log(`[WEBHOOK /webhook/ngx/${id}] resolved: ${eventType} -> ${webhookType || "IGNORADO"}`);
       if (webhookType) {
         try {
           await alertEngine.processWebhook(webhookType, event);
