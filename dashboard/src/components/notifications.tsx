@@ -231,23 +231,19 @@ export function NotificationBell() {
       "Usuario";
     const action = webhookTypeLabels[n.webhookType] || "disparou alerta";
 
-    let detail = "";
-    if (n.webhookType === "WITHDRAWAL_CONFIRMATION" && n.data.withdraw_value) {
-      detail = ` de R$ ${Number(n.data.withdraw_value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
-    } else if (n.webhookType === "DEPOSIT" && n.data.deposit_value) {
-      detail = ` de R$ ${Number(n.data.deposit_value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
-    } else if (
-      (n.webhookType === "SPORT_BET" || n.webhookType === "CASINO_BET") &&
-      n.data.bet_value
-    ) {
-      detail = ` de R$ ${Number(n.data.bet_value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
-    } else if (
-      (n.webhookType === "SPORT_PRIZE" || n.webhookType === "CASINO_PRIZE") &&
-      (n.data.prize_value || n.data.casino_prize_value || n.data.bet_return_value)
-    ) {
-      const val = n.data.prize_value || n.data.casino_prize_value || n.data.bet_return_value;
-      detail = ` de R$ ${Number(val).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
-    }
+    const fmt = (v: unknown) => `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+    const val = (() => {
+      const d = n.data;
+      switch (n.webhookType) {
+        case "WITHDRAWAL_CONFIRMATION": return d.withdraw_value;
+        case "DEPOSIT": return d.deposit_value;
+        case "SPORT_BET": case "CASINO_BET": return d.bet_value ?? d.casino_bet_value;
+        case "SPORT_PRIZE": return d.bet_return_value ?? d.prize_value;
+        case "CASINO_PRIZE": return d.prize_value ?? d.casino_prize_value;
+        default: return undefined;
+      }
+    })();
+    const detail = val !== undefined && val !== null && val !== "" ? ` de ${fmt(val)}` : "";
 
     return (
       <>
