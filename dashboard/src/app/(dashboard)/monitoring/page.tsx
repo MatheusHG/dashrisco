@@ -140,10 +140,16 @@ export default function MonitoringPage() {
   const [editing, setEditing] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [configLoaded, setConfigLoaded] = useState(false);
   const [visible, setVisible] = useState<string[]>(DEFAULT_VISIBLE);
   const [layouts, setLayouts] = useState<Layout[]>(buildLayouts(DEFAULT_VISIBLE));
 
-  useEffect(() => { if (!user?.id) return; const c = loadConfig(user.id); if (c) { setVisible(c.visible); setLayouts(c.layouts); } }, [user?.id]);
+  useEffect(() => {
+    if (!user?.id) return;
+    const c = loadConfig(user.id);
+    if (c) { setVisible(c.visible); setLayouts(c.layouts); }
+    setConfigLoaded(true);
+  }, [user?.id]);
 
   const fetchStats = useCallback(() => {
     const params = new URLSearchParams();
@@ -154,7 +160,7 @@ export default function MonitoringPage() {
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
 
-  const onLayoutChange = useCallback((nl: Layout[]) => { setLayouts(nl); if (user?.id) saveConfig(user.id, visible, nl); }, [user?.id, visible]);
+  const onLayoutChange = useCallback((nl: Layout[]) => { if (!configLoaded) return; setLayouts(nl); if (user?.id) saveConfig(user.id, visible, nl); }, [user?.id, visible, configLoaded]);
   const toggleWidget = useCallback((id: string) => {
     setVisible((prev) => {
       const next = prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id];
