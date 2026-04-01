@@ -20,6 +20,7 @@ import {
   Search,
   Sun,
   Moon,
+  Monitor,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
@@ -47,6 +48,7 @@ const navGroups: NavGroup[] = [
   {
     label: "Monitoramento",
     items: [
+      { name: "Monitoramento", href: "/monitoring", icon: Monitor, permission: "panel:read" },
       { name: "Alertas", href: "/alerts", icon: Bell, permission: "alerts:read" },
       { name: "Painel de Alertas", href: "/panel/alerts", icon: FileText, permission: "panel:read" },
       { name: "Painel de Tasks", href: "/panel/tasks", icon: ListTodo, permission: "panel:read" },
