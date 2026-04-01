@@ -114,8 +114,8 @@ export function Sidebar() {
       {/* Logo + Toggle */}
       <div className="flex h-16 items-center border-b border-border px-3">
         {!collapsed && (
-          <Link href="/" className="flex-1 pl-1">
-            <Image src="/logo-risco.png" alt="JBD Risco" width={120} height={40} className="h-9 w-auto object-contain" />
+          <Link href="/" className="flex-1 flex justify-center">
+            <Image src={theme === "dark" ? "/logo-risco-dark.png" : "/logo-risco.png"} alt="JBD Risco" width={120} height={40} className="h-20 w-auto object-contain" />
           </Link>
         )}
         <Button
