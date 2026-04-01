@@ -267,16 +267,9 @@ async function start() {
 
   // ── Webhook routes (antigo gateway) ──────────────────────────────────
 
-  // Resolve o tipo de webhook considerando status do saque
   function resolveWebhookType(body: any): string | undefined {
     const eventType = body?.type;
-    let webhookType = typeToWebhookType[eventType];
-    // Diferenciar saque solicitado vs aprovado pelo status
-    if (eventType === "WITHDRAWAL_CONFIRMATION" || eventType === "WITHDRAWAL_REQUEST") {
-      const status = body?.withdraw_status;
-      webhookType = status === "PENDING" ? "WITHDRAWAL_REQUEST" : "WITHDRAWAL_CONFIRMATION";
-    }
-    return webhookType;
+    return typeToWebhookType[eventType];
   }
 
   // Endpoint genérico: roteia pelo campo "type" no body
