@@ -4,11 +4,11 @@ import { useEffect, useState, useCallback } from "react";
 import { api } from "@/lib/api";
 import { getFieldLabel, webhookTypeLabels, WEBHOOK_TYPES } from "@/lib/field-labels";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Filter, X, ChevronDown, ChevronUp, AlertTriangle, Eye, Play, CheckCircle } from "lucide-react";
+import { X, ChevronDown, AlertTriangle, Eye, Play, CheckCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 const WEBHOOK_TYPES_FILTER = [{ value: "", label: "Todos" }, ...WEBHOOK_TYPES.map(({ value, label }) => ({ value, label }))];
@@ -79,15 +79,14 @@ export default function PanelAlertsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // Filters
-  const [showFilters, setShowFilters] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [webhookType, setWebhookType] = useState("");
   const [alertConfigId, setAlertConfigId] = useState("");
   const [modeFilter, setModeFilter] = useState("");
+  const [queueFilter, setQueueFilter] = useState("pending"); // default: fila de pendentes
 
-  const hasFilters = startDate || endDate || webhookType || alertConfigId || modeFilter;
+  const hasFilters = startDate || endDate || webhookType || alertConfigId || modeFilter || queueFilter !== "pending";
 
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
@@ -101,6 +100,7 @@ export default function PanelAlertsPage() {
       if (webhookType) params.set("webhookType", webhookType);
       if (alertConfigId) params.set("alertConfigId", alertConfigId);
       if (modeFilter) params.set("mode", modeFilter);
+      if (queueFilter) params.set("queue", queueFilter);
 
       const data = await api.fetch<{
         alerts: PanelAlertItem[];
@@ -113,7 +113,7 @@ export default function PanelAlertsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, startDate, endDate, webhookType, alertConfigId, modeFilter]);
+  }, [page, startDate, endDate, webhookType, alertConfigId, modeFilter, queueFilter]);
 
   useEffect(() => {
     fetchAlerts();
@@ -133,260 +133,148 @@ export default function PanelAlertsPage() {
     setWebhookType("");
     setAlertConfigId("");
     setModeFilter("");
+    setQueueFilter("pending");
     setPage(1);
   };
 
   const getKeyFieldsForType = (type: string) =>
     keyFields[type] || ["user_name", "user_username"];
 
+  const queueTabs = [
+    { value: "pending", label: "Pendentes", icon: AlertTriangle },
+    { value: "in_progress", label: "Em Analise", icon: Play },
+    { value: "done", label: "Concluidos", icon: CheckCircle },
+    { value: "", label: "Todos", icon: Eye },
+  ];
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {/* Header compact */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/10">
-            <AlertTriangle className="h-5 w-5 text-red-500" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">Painel de Alertas</h1>
-            <p className="text-sm text-muted-foreground">{alerts.length} alertas disparados</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            variant={showFilters ? "default" : "outline"}
-            size="sm"
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <Filter className="h-4 w-4" />
-            Filtros
-            {hasFilters && (
-              <Badge
-                variant="secondary"
-                className="ml-1 text-[10px] px-1.5 py-0"
-              >
-                !
-              </Badge>
-            )}
-          </Button>
+        <h1 className="text-xl font-bold tracking-tight text-foreground">Fila de Alertas</h1>
+        <div className="flex items-center gap-2">
+          <Input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setPage(1); }} className="w-32 h-8 text-xs rounded-lg" />
+          <Input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setPage(1); }} className="w-32 h-8 text-xs rounded-lg" />
+          <select className="h-8 rounded-lg border border-input bg-transparent px-2 text-xs text-foreground" value={webhookType} onChange={(e) => { setWebhookType(e.target.value); setPage(1); }}>
+            {WEBHOOK_TYPES_FILTER.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+          {hasFilters && <button onClick={clearFilters} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground"><X className="h-3.5 w-3.5" /></button>}
         </div>
       </div>
 
-      {/* Filters */}
-      {showFilters && (
-        <Card>
-          <CardContent className="flex flex-wrap items-end gap-4 pt-4 pb-4">
-            <div className="space-y-1">
-              <Label className="text-xs">Data Inicio</Label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                  setPage(1);
-                }}
-                className="w-40 h-8 text-sm"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Data Fim</Label>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                  setPage(1);
-                }}
-                className="w-40 h-8 text-sm"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Tipo</Label>
-              <select
-                className="flex h-8 rounded-md border border-input bg-transparent px-3 text-sm text-foreground"
-                value={webhookType}
-                onChange={(e) => {
-                  setWebhookType(e.target.value);
-                  setPage(1);
-                }}
-              >
-                {WEBHOOK_TYPES_FILTER.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Modo</Label>
-              <select
-                className="flex h-8 rounded-md border border-input bg-transparent px-3 text-sm text-foreground"
-                value={modeFilter}
-                onChange={(e) => {
-                  setModeFilter(e.target.value);
-                  setPage(1);
-                }}
-              >
-                <option value="">Todos</option>
-                <option value="ALERT">Alertas</option>
-                <option value="WATCH">Acompanhamento</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Alerta</Label>
-              <select
-                className="flex h-8 rounded-md border border-input bg-transparent px-3 text-sm text-foreground"
-                value={alertConfigId}
-                onChange={(e) => {
-                  setAlertConfigId(e.target.value);
-                  setPage(1);
-                }}
-              >
-                <option value="">Todos</option>
-                {alertConfigs.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {hasFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                <X className="h-4 w-4" />
-                Limpar
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      {/* Queue tabs */}
+      <div className="flex gap-1 p-1 rounded-xl bg-muted/50">
+        {queueTabs.map((tab) => {
+          const active = queueFilter === tab.value;
+          const Icon = tab.icon;
+          return (
+            <button key={tab.value} onClick={() => { setQueueFilter(tab.value); setPage(1); }}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all ${
+                active ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}>
+              <Icon className="h-3.5 w-3.5" />{tab.label}
+            </button>
+          );
+        })}
+      </div>
 
-      {/* Alerts */}
+      {/* Alert list */}
       {loading ? (
-        <p className="text-muted-foreground">Carregando...</p>
+        <div className="flex justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
       ) : alerts.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center text-muted-foreground">
-            Nenhum alerta disparado
-            {hasFilters ? " para os filtros selecionados." : " ainda."}
-          </CardContent>
-        </Card>
+        <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
+          <CheckCircle className="h-10 w-10 opacity-20" />
+          <p className="text-sm">{queueFilter === "pending" ? "Nenhum alerta pendente" : queueFilter === "done" ? "Nenhuma analise concluida" : "Nenhum alerta encontrado"}</p>
+        </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {alerts.map((alert) => {
             const isExpanded = expandedId === alert.id;
             const fields = getKeyFieldsForType(alert.webhookType);
-            const colorClass =
-              typeColors[alert.webhookType] || "bg-muted text-foreground";
+            const colorClass = typeColors[alert.webhookType] || "bg-muted text-foreground";
+            const userName = (alert.data.user_name as string) || (alert.data.user_username as string) || "";
+            const mainValue = (() => {
+              const d = alert.data;
+              switch (alert.webhookType) {
+                case "WITHDRAWAL_REQUEST": case "WITHDRAWAL_CONFIRMATION": return d.withdraw_value;
+                case "DEPOSIT_REQUEST": case "DEPOSIT": return d.deposit_value;
+                case "SPORT_BET": case "CASINO_BET": return d.bet_value;
+                case "SPORT_PRIZE": return d.bet_return_value;
+                case "CASINO_PRIZE": return d.prize_value;
+                case "CASINO_REFUND": return d.refunded_value;
+                default: return undefined;
+              }
+            })();
 
             return (
-              <Card key={alert.id} className="overflow-hidden">
-                <CardContent className="p-0">
-                  {/* Main row */}
-                  <div className="p-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          className={`text-[11px] border-0 ${colorClass}`}
-                        >
-                          {webhookTypeLabels[alert.webhookType] ||
-                            alert.webhookType}
-                        </Badge>
-                        <Badge variant="outline" className="text-[11px]">
-                          {alert.alertConfig?.name ?? "Config removida"}
-                        </Badge>
-                        {alert.mode === "WATCH" ? (
-                          <Badge className="text-[10px] border-0 bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-400 gap-1">
-                            <Eye className="h-3 w-3" />Acompanhamento
-                          </Badge>
-                        ) : (
-                          <Badge className="text-[10px] border-0 bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-400 gap-1">
-                            <AlertTriangle className="h-3 w-3" />Alerta
-                          </Badge>
-                        )}
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(alert.createdAt).toLocaleString("pt-BR")}
-                        </span>
-                      </div>
-                      {alert.taskId && (
-                        alert.taskStatus === "done" ? (
-                          <Link href={`/panel/tasks/${alert.taskId}/analise`}>
-                            <Badge className="text-[10px] border-0 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400 gap-1 cursor-pointer hover:bg-emerald-200 dark:hover:bg-emerald-900/60 transition-colors">
-                              <CheckCircle className="h-3 w-3" />Analise Concluida
-                            </Badge>
-                          </Link>
-                        ) : (
-                          <Link href={`/panel/tasks/${alert.taskId}/analise`}>
-                            <Badge className="text-[10px] border-0 bg-primary/10 text-primary gap-1 cursor-pointer hover:bg-primary/20 transition-colors">
-                              <Play className="h-3 w-3" />Analisar
-                            </Badge>
-                          </Link>
-                        )
-                      )}
-                    </div>
-
-                    {/* Key fields grid - always visible */}
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                      {fields.map((fieldKey) => {
-                        const value = alert.data[fieldKey];
-                        if (value === undefined && value === null) return null;
-                        return (
-                          <div key={fieldKey}>
-                            <p className="text-[11px] text-muted-foreground">
-                              {getFieldLabel(fieldKey)}
-                            </p>
-                            <p className="text-sm font-medium text-foreground truncate">
-                              {formatValue(fieldKey, value)}
-                            </p>
-                          </div>
-                        );
-                      })}
+              <div key={alert.id} className="group rounded-xl border border-border/50 bg-card/80 overflow-hidden hover:border-border transition-colors">
+                {/* Main row */}
+                <div className="flex items-center gap-4 px-4 py-3">
+                  {/* Left: type color dot + user info */}
+                  <div className="flex-1 min-w-0 flex items-center gap-3">
+                    <Badge className={`text-[10px] border-0 shrink-0 ${colorClass}`}>
+                      {webhookTypeLabels[alert.webhookType] || alert.webhookType}
+                    </Badge>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{userName || alert.title}</p>
+                      <p className="text-[11px] text-muted-foreground">{alert.alertConfig?.name} · {new Date(alert.createdAt).toLocaleString("pt-BR")}</p>
                     </div>
                   </div>
 
-                  {/* Expand toggle */}
-                  <button
-                    className="flex w-full items-center justify-center gap-1 border-t border-border py-2 text-xs text-muted-foreground hover:bg-muted/50 transition-colors"
-                    onClick={() =>
-                      setExpandedId(isExpanded ? null : alert.id)
-                    }
-                  >
-                    {isExpanded ? (
-                      <>
-                        Ocultar detalhes <ChevronUp className="h-3 w-3" />
-                      </>
-                    ) : (
-                      <>
-                        Ver todos os campos <ChevronDown className="h-3 w-3" />
-                      </>
-                    )}
-                  </button>
-
-                  {/* Expanded details */}
-                  {isExpanded && (
-                    <div className="border-t border-border bg-muted/30 p-4">
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                        {Object.entries(alert.data)
-                          .filter(
-                            ([key]) => !fields.includes(key) && key !== "type"
-                          )
-                          .filter(
-                            ([, v]) =>
-                              v !== null && v !== undefined && v !== ""
-                          )
-                          .map(([key, value]) => (
-                            <div key={key}>
-                              <p className="text-[11px] text-muted-foreground">
-                                {getFieldLabel(key)}
-                              </p>
-                              <p className="text-sm text-foreground break-all">
-                                {formatValue(key, value)}
-                              </p>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
+                  {/* Center: value */}
+                  {mainValue !== undefined && mainValue !== null && mainValue !== "" && (
+                    <span className="text-sm font-bold text-foreground shrink-0">
+                      R$ {Number(mainValue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </span>
                   )}
-                </CardContent>
-              </Card>
+
+                  {/* Right: action */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {alert.taskId ? (
+                      alert.taskStatus === "done" ? (
+                        <Link href={`/panel/tasks/${alert.taskId}/analise`} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-semibold hover:bg-emerald-500 transition-colors">
+                          <CheckCircle className="h-3 w-3" /> Concluida
+                        </Link>
+                      ) : alert.taskStatus === "in_progress" ? (
+                        <Link href={`/panel/tasks/${alert.taskId}/analise`} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500 text-white text-[11px] font-semibold hover:bg-amber-400 transition-colors">
+                          <Play className="h-3 w-3" /> Continuar
+                        </Link>
+                      ) : (
+                        <Link href={`/panel/tasks/${alert.taskId}/analise`} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-[11px] font-semibold hover:bg-primary/90 transition-colors">
+                          <Play className="h-3 w-3" /> Analisar
+                        </Link>
+                      )
+                    ) : (
+                      <button onClick={() => setExpandedId(isExpanded ? null : alert.id)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground transition-colors">
+                        <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                      </button>
+                    )}
+                    {alert.taskId && (
+                      <button onClick={() => setExpandedId(isExpanded ? null : alert.id)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground transition-colors">
+                        <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Expanded detail */}
+                {isExpanded && (
+                  <div className="px-4 pb-4 pt-1 border-t border-border/30">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                      {Object.entries(alert.data)
+                        .filter(([k]) => k !== "type")
+                        .filter(([, v]) => v !== null && v !== undefined && v !== "")
+                        .slice(0, 15)
+                        .map(([key, value]) => (
+                          <div key={key}>
+                            <p className="text-[10px] text-muted-foreground">{getFieldLabel(key)}</p>
+                            <p className="text-xs font-medium text-foreground truncate">{formatValue(key, value)}</p>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
@@ -394,26 +282,10 @@ export default function PanelAlertsPage() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex justify-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page <= 1}
-            onClick={() => setPage(page - 1)}
-          >
-            Anterior
-          </Button>
-          <span className="flex items-center text-sm text-muted-foreground">
-            {page} de {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page >= totalPages}
-            onClick={() => setPage(page + 1)}
-          >
-            Proximo
-          </Button>
+        <div className="flex items-center justify-center gap-3">
+          <Button variant="outline" size="sm" className="rounded-lg text-xs" disabled={page <= 1} onClick={() => setPage(page - 1)}>Anterior</Button>
+          <span className="text-xs text-muted-foreground">{page} de {totalPages}</span>
+          <Button variant="outline" size="sm" className="rounded-lg text-xs" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Proximo</Button>
         </div>
       )}
     </div>

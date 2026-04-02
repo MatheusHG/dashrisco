@@ -136,6 +136,7 @@ export async function panelRoutes(app: FastifyInstance) {
         startDate?: string;
         endDate?: string;
         mode?: string;
+        queue?: string; // "pending" = só alertas que precisam analisar
       };
 
       const page = Math.max(1, Number(query.page) || 1);
@@ -146,6 +147,17 @@ export async function panelRoutes(app: FastifyInstance) {
       if (query.webhookType) where.webhookType = query.webhookType;
       if (query.alertConfigId) where.alertConfigId = query.alertConfigId;
       if (query.mode) where.mode = query.mode;
+      // Fila de trabalho: só alertas sem task concluída/em andamento
+      if (query.queue === "pending") {
+        where.OR = [
+          { task: null },
+          { task: { status: "open" } },
+        ];
+      } else if (query.queue === "done") {
+        where.task = { status: "done" };
+      } else if (query.queue === "in_progress") {
+        where.task = { status: "in_progress" };
+      }
       if (query.startDate || query.endDate) {
         where.createdAt = {};
         if (query.startDate)
