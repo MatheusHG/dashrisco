@@ -222,31 +222,34 @@ export class AlertEngine {
 
     const isWatch = config.mode === "WATCH";
 
+    // 1) Criar alerta no banco (sempre)
+    const alert = await this.createPanelAlert(config, title, message, data, isWatch);
+
+    // 2) Criar task vinculada ao alerta (se configurado e nao WATCH)
+    let taskId: string | null = null;
+    if (!isWatch && config.createPanelTask) {
+      taskId = await this.createPanelTask(config, title, message, data, alert.id);
+    }
+
+    // 3) Emitir SSE com taskId (para o botao "Iniciar Analise")
+    if (!isWatch) {
+      eventBus.emit("panel-alert", { ...alert, taskId });
+    }
+
+    // 4) Acoes paralelas (chat, clickup, webhook externo)
     const promises: Promise<void>[] = [];
-
-    // Sempre cria o registro no banco (para histórico)
-    promises.push(this.createPanelAlert(config, title, message, data, isWatch));
-
-    // WATCH mode: apenas registra, sem notificar
     if (!isWatch) {
       if (config.publishChat && config.chatWebhookUrl) {
         promises.push(this.sendToGoogleChat(config.chatWebhookUrl, title, message));
       }
-
-      if (config.createPanelTask) {
-        promises.push(this.createPanelTask(config, title, message, data));
-      }
-
       if (config.createClickupTask && config.clickupListId) {
         promises.push(this.createClickupTask(config.clickupListId, title, message));
       }
-
       if (config.externalWebhookUrl) {
         promises.push(this.sendToExternalWebhook(config.externalWebhookUrl, config, title, message, data));
       }
     }
-
-    await Promise.allSettled(promises);
+    if (promises.length > 0) await Promise.allSettled(promises);
 
     await this.prisma.log.create({
       data: {
@@ -303,7 +306,7 @@ export class AlertEngine {
     message: string,
     data: Record<string, unknown>,
     isWatch: boolean = false
-  ): Promise<void> {
+  ) {
     const alert = await this.prisma.panelAlert.create({
       data: {
         alertConfigId: config.id,
@@ -317,11 +320,7 @@ export class AlertEngine {
         alertConfig: { select: { name: true } },
       },
     });
-
-    // WATCH mode: não emite via SSE (sem notificação em tempo real)
-    if (!isWatch) {
-      eventBus.emit("panel-alert", alert);
-    }
+    return alert;
   }
 
   private async sendToGoogleChat(
@@ -356,14 +355,16 @@ export class AlertEngine {
     config: AlertConfig,
     title: string,
     _message: string,
-    data: Record<string, unknown>
-  ): Promise<void> {
+    data: Record<string, unknown>,
+    panelAlertId: string
+  ): Promise<string> {
     const checklistLabels = (config.checklist as string[]) || [];
     const checklist = checklistLabels.map((label) => ({ label, checked: false }));
 
-    await this.prisma.panelTask.create({
+    const task = await this.prisma.panelTask.create({
       data: {
         alertConfigId: config.id,
+        panelAlertId,
         title,
         description: `Alerta disparado: ${config.name}`,
         data: data as Prisma.InputJsonValue,
@@ -371,6 +372,7 @@ export class AlertEngine {
         checklist,
       },
     });
+    return task.id;
   }
 
   private async createClickupTask(

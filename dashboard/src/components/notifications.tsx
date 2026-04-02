@@ -5,8 +5,9 @@ import { api } from "@/lib/api";
 import { getFieldLabel, webhookTypeLabels } from "@/lib/field-labels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bell, X, ExternalLink } from "lucide-react";
+import { Bell, X, ExternalLink, Play, CheckCircle } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
 
@@ -20,9 +21,12 @@ interface Notification {
   source: string;
   createdAt: string;
   alertConfig: { name: string } | null;
+  taskId?: string | null;
+  taskStatus?: string | null;
 }
 
 export function NotificationBell() {
+  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
@@ -262,7 +266,25 @@ export function NotificationBell() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-foreground">{popup.alertConfig?.name ?? "Alerta"}</p>
                 <p className="text-sm text-muted-foreground mt-0.5">{formatMessage(popup)}</p>
-                <p className="text-[10px] text-muted-foreground mt-1">Agora</p>
+                {popup.taskId ? (
+                  popup.taskStatus === "done" ? (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setPopup(null); router.push(`/panel/tasks/${popup.taskId}/analise`); }}
+                      className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-500 transition-colors"
+                    >
+                      <CheckCircle className="h-3 w-3" /> Visualizar Analise
+                    </button>
+                  ) : (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setPopup(null); router.push(`/panel/tasks/${popup.taskId}/analise`); }}
+                      className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors"
+                    >
+                      <Play className="h-3 w-3" /> Iniciar Analise
+                    </button>
+                  )
+                ) : (
+                  <p className="text-[10px] text-muted-foreground mt-1">Agora</p>
+                )}
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); setPopup(null); }}
@@ -363,9 +385,27 @@ export function NotificationBell() {
                               Nova
                             </Badge>
                           )}
-                          <span className="text-[11px] text-primary ml-auto">
-                            {isExpanded ? "Fechar" : "Ver detalhes"}
-                          </span>
+                          {n.taskId && n.taskStatus === "done" && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); markAsRead(n.id); setOpen(false); router.push(`/panel/tasks/${n.taskId}/analise`); }}
+                              className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-600 text-white text-[10px] font-semibold hover:bg-emerald-500 transition-colors"
+                            >
+                              <CheckCircle className="h-2.5 w-2.5" /> Concluida
+                            </button>
+                          )}
+                          {n.taskId && n.taskStatus !== "done" && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); markAsRead(n.id); setOpen(false); router.push(`/panel/tasks/${n.taskId}/analise`); }}
+                              className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary text-primary-foreground text-[10px] font-semibold hover:bg-primary/90 transition-colors"
+                            >
+                              <Play className="h-2.5 w-2.5" /> Analisar
+                            </button>
+                          )}
+                          {!n.taskId && (
+                            <span className="text-[11px] text-primary ml-auto">
+                              {isExpanded ? "Fechar" : "Ver detalhes"}
+                            </span>
+                          )}
                         </div>
 
                         {isExpanded && (

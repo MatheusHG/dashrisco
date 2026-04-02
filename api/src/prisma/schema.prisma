@@ -184,6 +184,7 @@ model PanelAlert {
   mode          AlertMode    @default(ALERT)
   source        String       @default("alert") // "alert" | "group_lock"
   createdAt     DateTime     @default(now()) @map("created_at")
+  task          PanelTask?
 
   @@index([createdAt])
   @@index([alertConfigId])
@@ -194,12 +195,15 @@ model PanelAlert {
 model PanelTask {
   id            String           @id @default(uuid())
   alertConfigId String?          @map("alert_config_id")
+  panelAlertId  String?          @unique @map("panel_alert_id")
+  panelAlert    PanelAlert?      @relation(fields: [panelAlertId], references: [id])
   title         String
   description   String?
   status        String           @default("open")
   priority      Int              @default(3)
   data          Json?
   checklist     Json             @default("[]") // ex: [{"label":"FTD","checked":false}]
+  parecer       String?          // parecer final da analise
   assignedTo    String?          @map("assigned_to")
   createdBy     String?          @map("created_by")
   completedBy   String?          @map("completed_by")

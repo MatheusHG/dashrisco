@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Filter, X, ChevronDown, ChevronUp, AlertTriangle, Eye } from "lucide-react";
+import { Filter, X, ChevronDown, ChevronUp, AlertTriangle, Eye, Play, CheckCircle } from "lucide-react";
+import Link from "next/link";
 
 const WEBHOOK_TYPES_FILTER = [{ value: "", label: "Todos" }, ...WEBHOOK_TYPES.map(({ value, label }) => ({ value, label }))];
 
@@ -55,6 +56,8 @@ interface PanelAlertItem {
   mode: "ALERT" | "WATCH";
   createdAt: string;
   alertConfig: { id: string; name: string } | null;
+  taskId: string | null;
+  taskStatus: string | null;
 }
 
 function formatValue(key: string, value: unknown): string {
@@ -303,6 +306,21 @@ export default function PanelAlertsPage() {
                           {new Date(alert.createdAt).toLocaleString("pt-BR")}
                         </span>
                       </div>
+                      {alert.taskId && (
+                        alert.taskStatus === "done" ? (
+                          <Link href={`/panel/tasks/${alert.taskId}/analise`}>
+                            <Badge className="text-[10px] border-0 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-400 gap-1 cursor-pointer hover:bg-emerald-200 dark:hover:bg-emerald-900/60 transition-colors">
+                              <CheckCircle className="h-3 w-3" />Analise Concluida
+                            </Badge>
+                          </Link>
+                        ) : (
+                          <Link href={`/panel/tasks/${alert.taskId}/analise`}>
+                            <Badge className="text-[10px] border-0 bg-primary/10 text-primary gap-1 cursor-pointer hover:bg-primary/20 transition-colors">
+                              <Play className="h-3 w-3" />Analisar
+                            </Badge>
+                          </Link>
+                        )
+                      )}
                     </div>
 
                     {/* Key fields grid - always visible */}

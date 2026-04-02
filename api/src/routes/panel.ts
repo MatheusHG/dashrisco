@@ -115,10 +115,11 @@ export async function panelRoutes(app: FastifyInstance) {
         take: 20,
         include: {
           alertConfig: { select: { name: true } },
+          task: { select: { id: true, status: true } },
         },
       });
 
-      return alerts;
+      return alerts.map((a) => ({ ...a, taskId: a.task?.id ?? null, taskStatus: a.task?.status ?? null, task: undefined }));
     }
   );
 
@@ -157,7 +158,7 @@ export async function panelRoutes(app: FastifyInstance) {
           );
       }
 
-      const [alerts, total] = await Promise.all([
+      const [rawAlerts, total] = await Promise.all([
         app.prisma.panelAlert.findMany({
           where,
           skip,
@@ -165,10 +166,13 @@ export async function panelRoutes(app: FastifyInstance) {
           orderBy: { createdAt: "desc" },
           include: {
             alertConfig: { select: { id: true, name: true } },
+            task: { select: { id: true, status: true } },
           },
         }),
         app.prisma.panelAlert.count({ where }),
       ]);
+
+      const alerts = rawAlerts.map((a) => ({ ...a, taskId: a.task?.id ?? null, taskStatus: a.task?.status ?? null, task: undefined }));
 
       return { alerts, total, page, limit, totalPages: Math.ceil(total / limit) };
     }
@@ -435,6 +439,90 @@ export async function panelRoutes(app: FastifyInstance) {
       });
 
       return logs;
+    }
+  );
+
+  // ==================
+  // ANALYSIS WIZARD
+  // ==================
+
+  // Start analysis - auto-assign + set in_progress
+  app.post<{ Params: { id: string } }>(
+    "/tasks/:id/start-analysis",
+    { preHandler: authorize("panel:read") },
+    async (request, reply) => {
+      const { id } = request.params;
+      const task = await app.prisma.panelTask.findUnique({ where: { id } });
+      if (!task) return reply.status(404).send({ error: "Task nao encontrada" });
+
+      // Se já tem dono e é outro usuário
+      if (task.assignedTo && task.assignedTo !== request.currentUser?.id) {
+        const owner = await app.prisma.user.findUnique({ where: { id: task.assignedTo }, select: { name: true } });
+        return reply.status(409).send({ error: `${owner?.name || "Outro analista"} ja iniciou esta analise` });
+      }
+
+      const updated = await app.prisma.panelTask.update({
+        where: { id },
+        data: {
+          assignedTo: request.currentUser?.id ?? null,
+          status: task.status === "open" ? "in_progress" : task.status,
+        },
+        include: {
+          comments: { orderBy: { createdAt: "asc" } },
+          attachments: { orderBy: { createdAt: "desc" } },
+        },
+      });
+
+      await createLog(app.prisma, request, {
+        action: "task.analysis_started",
+        entity: "task",
+        entityId: id,
+      });
+
+      return updated;
+    }
+  );
+
+  // Complete analysis - validate checklist + save parecer + done
+  app.post<{ Params: { id: string } }>(
+    "/tasks/:id/complete-analysis",
+    { preHandler: authorize("panel:read") },
+    async (request, reply) => {
+      const { id } = request.params;
+      const body = request.body as { parecer: string };
+
+      if (!body.parecer?.trim()) {
+        return reply.status(400).send({ error: "Parecer final obrigatorio" });
+      }
+
+      const task = await app.prisma.panelTask.findUnique({ where: { id } });
+      if (!task) return reply.status(404).send({ error: "Task nao encontrada" });
+
+      const checklist = (task.checklist as Array<{ label: string; checked: boolean }>) || [];
+      const allChecked = checklist.length === 0 || checklist.every((item) => item.checked);
+
+      if (!allChecked) {
+        return reply.status(400).send({ error: "Todas as verificacoes devem ser concluidas" });
+      }
+
+      const updated = await app.prisma.panelTask.update({
+        where: { id },
+        data: {
+          parecer: body.parecer.trim(),
+          status: "done",
+          completedBy: request.currentUser?.id ?? null,
+          completedAt: task.completedAt ?? new Date(),
+        },
+      });
+
+      await createLog(app.prisma, request, {
+        action: "task.analysis_completed",
+        entity: "task",
+        entityId: id,
+        details: { parecer: body.parecer.trim().slice(0, 200) },
+      });
+
+      return updated;
     }
   );
 

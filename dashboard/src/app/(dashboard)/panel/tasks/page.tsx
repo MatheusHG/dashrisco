@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, type DragEvent } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { getFieldLabel, WEBHOOK_TYPES } from "@/lib/field-labels";
@@ -43,6 +44,8 @@ import {
   Underline,
   CheckSquare,
   Square,
+  Play,
+  CheckCircle,
 } from "lucide-react";
 
 // ═══════════════════════════════════════
@@ -431,6 +434,11 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
                 </h2>
               )}
             </div>
+            {(task.checklist ?? []).length > 0 && (
+              <Link href={`/panel/tasks/${taskId}/analise`} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors">
+                <Play className="h-3 w-3" /> Modo Interativo
+              </Link>
+            )}
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
               <X className="h-5 w-5" />
             </button>
