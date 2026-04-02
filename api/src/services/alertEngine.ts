@@ -27,6 +27,8 @@ export class AlertEngine {
     webhookType: string,
     data: Record<string, unknown>
   ): Promise<void> {
+    const normalizedData = this.normalizeWebhookData(webhookType, data);
+
     const configs = await this.prisma.alertConfig.findMany({
       where: {
         webhookType: webhookType as any,
@@ -39,7 +41,7 @@ export class AlertEngine {
     });
 
     console.log(
-      `[AlertEngine] processWebhook type=${webhookType}, configs encontradas=${configs.length}, user_id=${data.user_id ?? "undefined"}, payload=${this.safeStringify(data)}`
+      `[AlertEngine] processWebhook type=${webhookType}, configs encontradas=${configs.length}, user_id=${normalizedData.user_id ?? "undefined"}, payload=${this.safeStringify(normalizedData)}`
     );
 
     if (configs.length === 0) {
@@ -51,9 +53,9 @@ export class AlertEngine {
         console.log(`[AlertEngine] Iniciando avaliacao da config "${config.name}" (${config.id})`);
 
         // 1) Filtros basicos no webhook data
-        const filtersOk = this.evaluateFilters(config.filters, data);
+        const filtersOk = this.evaluateFilters(config.filters, normalizedData);
         if (!filtersOk) {
-          console.log(`[AlertEngine] Config "${config.name}" (${config.id}): filtros NAO passaram. Filters: ${JSON.stringify(config.filters.map(f => ({ field: f.field, op: f.operator, value: f.value, dataValue: data[f.field] })))}`);
+          console.log(`[AlertEngine] Config "${config.name}" (${config.id}): filtros NAO passaram. Filters: ${JSON.stringify(config.filters.map(f => ({ field: f.field, op: f.operator, value: f.value, dataValue: normalizedData[f.field] })))}`);
           continue;
         }
         console.log(`[AlertEngine] Config "${config.name}" (${config.id}): filtros OK`);
@@ -61,7 +63,7 @@ export class AlertEngine {
         // 2) Query ClickHouse (se habilitada)
         let queryResult: Record<string, string> | null = null;
         if (config.queryEnabled && config.clickhouseQuery && this.clickhouse) {
-          const result = await this.evaluateClickHouseQuery(config, data);
+          const result = await this.evaluateClickHouseQuery(config, normalizedData);
           if (!result.passed) {
             console.log(`[AlertEngine] Config "${config.name}" (${config.id}): query ClickHouse NAO passou`);
             continue;
@@ -73,8 +75,8 @@ export class AlertEngine {
         // 3) Executar acoes
         console.log(`[AlertEngine] Config "${config.name}" (${config.id}): executando acoes`);
         const enrichedData = queryResult
-          ? { ...data, _queryResult: queryResult }
-          : data;
+          ? { ...normalizedData, _queryResult: queryResult }
+          : normalizedData;
         await this.executeActions(config, enrichedData);
         console.log(`[AlertEngine] Config "${config.name}" (${config.id}): acoes finalizadas`);
       } catch (err) {
@@ -89,6 +91,31 @@ export class AlertEngine {
     } catch (err) {
       return `[unserializable-payload: ${(err as Error).message}]`;
     }
+  }
+
+  private normalizeWebhookData(
+    webhookType: string,
+    data: Record<string, unknown>
+  ): Record<string, unknown> {
+    const normalized = { ...data };
+
+    if (webhookType === "CASINO_PRIZE" && normalized.casino_prize_value === undefined && normalized.prize_value !== undefined) {
+      normalized.casino_prize_value = normalized.prize_value;
+    }
+
+    if (webhookType === "CASINO_BET" && normalized.casino_bet_value === undefined && normalized.bet_value !== undefined) {
+      normalized.casino_bet_value = normalized.bet_value;
+    }
+
+    if ((webhookType === "CASINO_BET" || webhookType === "CASINO_PRIZE") && normalized.casino_game_name === undefined && normalized.game_name !== undefined) {
+      normalized.casino_game_name = normalized.game_name;
+    }
+
+    if (webhookType === "CASINO_BET" && normalized.casino_bet_id === undefined && normalized.bet_id !== undefined) {
+      normalized.casino_bet_id = normalized.bet_id;
+    }
+
+    return normalized;
   }
 
   // ── Filtros basicos (webhook data) ──────────────────────────────
