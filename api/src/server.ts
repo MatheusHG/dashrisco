@@ -42,6 +42,14 @@ const typeToWebhookType: Record<string, string> = {
   USER_REGISTRATION: "USER_REGISTRATION",
 };
 
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch (err) {
+    return `[unserializable-payload: ${(err as Error).message}]`;
+  }
+}
+
 // ── START ─────────────────────────────────────────────────────────────────
 async function start() {
   await app.register(cors, {
@@ -276,20 +284,38 @@ async function start() {
   app.post("/webhook/ngx", async (req, reply) => {
     const body = req.body as any;
     const eventType = body?.type;
+    const webhookType = resolveWebhookType(body);
+
+    console.log(
+      `[Webhook/NGX] Recebido em /webhook/ngx: eventType=${eventType ?? "undefined"}, webhookType=${webhookType ?? "unmapped"}, payload=${safeStringify(body)}`
+    );
 
     // Alertas dinâmicos (AlertEngine + GroupLockEngine)
-    const webhookType = resolveWebhookType(body);
     if (webhookType) {
       try {
         await alertEngine.processWebhook(webhookType, body);
+        console.log(`[Webhook/NGX] AlertEngine finalizado com sucesso para type=${webhookType}`);
       } catch (err) {
+        console.error(
+          `[Webhook/NGX] Falha no AlertEngine para eventType=${eventType ?? "undefined"} / webhookType=${webhookType}:`,
+          err
+        );
         req.log.error({ err }, "Erro no AlertEngine");
       }
       try {
         await groupLockEngine.processBet(webhookType, body);
+        console.log(`[Webhook/NGX] GroupLockEngine finalizado com sucesso para type=${webhookType}`);
       } catch (err) {
+        console.error(
+          `[Webhook/NGX] Falha no GroupLockEngine para eventType=${eventType ?? "undefined"} / webhookType=${webhookType}:`,
+          err
+        );
         req.log.error({ err }, "Erro no GroupLockEngine");
       }
+    } else {
+      console.log(
+        `[Webhook/NGX] Evento ignorado em /webhook/ngx: type nao mapeado (${eventType ?? "undefined"}).`
+      );
     }
 
     return reply.status(202).send({ ok: true });
@@ -301,24 +327,48 @@ async function start() {
     const payload = req as any;
     const items = Array.isArray(payload) ? payload : [payload];
 
-    for (const item of items) {
+    console.log(
+      `[Webhook/NGX] Recebido em /webhook/ngx/${id ?? ""}: totalItems=${items.length}`
+    );
+
+    for (const [index, item] of items.entries()) {
       const event = item?.body;
-      if (!event) continue;
+      if (!event) {
+        console.log(`[Webhook/NGX] Item ${index} sem body em /webhook/ngx/${id ?? ""}, ignorando.`);
+        continue;
+      }
 
       const eventType = event?.type;
       // Alertas dinâmicos
       const webhookType = resolveWebhookType(event);
+      console.log(
+        `[Webhook/NGX] Item ${index} em /webhook/ngx/${id ?? ""}: eventType=${eventType ?? "undefined"}, webhookType=${webhookType ?? "unmapped"}, payload=${safeStringify(event)}`
+      );
       if (webhookType) {
         try {
           await alertEngine.processWebhook(webhookType, event);
+          console.log(`[Webhook/NGX] AlertEngine finalizado com sucesso para item=${index}, type=${webhookType}`);
         } catch (err) {
+          console.error(
+            `[Webhook/NGX] Falha no AlertEngine para item=${index}, eventType=${eventType ?? "undefined"} / webhookType=${webhookType}:`,
+            err
+          );
           req.log.error({ err }, "Erro no AlertEngine");
         }
         try {
           await groupLockEngine.processBet(webhookType, event);
+          console.log(`[Webhook/NGX] GroupLockEngine finalizado com sucesso para item=${index}, type=${webhookType}`);
         } catch (err) {
+          console.error(
+            `[Webhook/NGX] Falha no GroupLockEngine para item=${index}, eventType=${eventType ?? "undefined"} / webhookType=${webhookType}:`,
+            err
+          );
           req.log.error({ err }, "Erro no GroupLockEngine");
         }
+      } else {
+        console.log(
+          `[Webhook/NGX] Item ${index} ignorado em /webhook/ngx/${id ?? ""}: type nao mapeado (${eventType ?? "undefined"}).`
+        );
       }
     }
 
