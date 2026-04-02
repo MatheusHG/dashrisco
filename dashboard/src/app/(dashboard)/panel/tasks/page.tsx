@@ -972,7 +972,7 @@ export default function PanelTasksPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [assignedTo, setAssignedTo] = useState<string>(isAdmin ? "" : currentUser?.id ?? "");
+  const [assignedTo, setAssignedTo] = useState<string>("");
   const [webhookType, setWebhookType] = useState("");
   const [showFilters, setShowFilters] = useState(true);
   const hasFilters = startDate || endDate || assignedTo || webhookType;
@@ -1054,7 +1054,7 @@ export default function PanelTasksPage() {
                 {users.map((u) => (<option key={u.id} value={u.id}>{u.name}</option>))}
               </select>
             </div>
-            {hasFilters && <Button variant="ghost" size="sm" onClick={() => { setStartDate(""); setEndDate(""); setAssignedTo(isAdmin ? "" : currentUser?.id ?? ""); setWebhookType(""); }}><X className="h-4 w-4" /> Limpar</Button>}
+            {hasFilters && <Button variant="ghost" size="sm" onClick={() => { setStartDate(""); setEndDate(""); setAssignedTo(""); setWebhookType(""); }}><X className="h-4 w-4" /> Limpar</Button>}
           </CardContent>
         </Card>
       )}
