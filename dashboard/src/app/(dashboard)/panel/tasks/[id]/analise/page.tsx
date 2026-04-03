@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft, ArrowRight, CheckCircle, Circle, Shield, Loader2, X,
   ChevronDown, Image, FileText, Trophy, Sparkles, Zap, Target,
-  Eye,
+  Eye, Bold, Italic, Underline, Paperclip, Send,
 } from "lucide-react";
 
 interface ChecklistItem { label: string; checked: boolean; }
@@ -49,6 +49,36 @@ export default function AnalysisWizardPage() {
   const [completed, setCompleted] = useState(false);
   const [showData, setShowData] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const commentTextRef = useRef<HTMLTextAreaElement>(null);
+
+  const wrapSelection = (prefix: string, suffix: string) => {
+    const el = commentTextRef.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const text = stepComment;
+    const selected = text.slice(start, end);
+    const before = text.slice(0, start);
+    const after = text.slice(end);
+    if (selected) {
+      setStepComment(before + prefix + selected + suffix + after);
+      setTimeout(() => { el.focus(); el.setSelectionRange(start + prefix.length, end + prefix.length); }, 0);
+    } else {
+      setStepComment(before + prefix + suffix + after);
+      setTimeout(() => { el.focus(); el.setSelectionRange(start + prefix.length, start + prefix.length); }, 0);
+    }
+  };
+
+  const uploadAttachment = async (file: globalThis.File) => {
+    const formData = new FormData();
+    formData.append("message", `[Passo ${currentStep + 1}] 📎 ${file.name}`);
+    formData.append("image", file);
+    try {
+      await fetch(`${apiUrl}/panel/tasks/${taskId}/comments`, { method: "POST", headers: { Authorization: `Bearer ${api.getAccessToken()}` }, body: formData });
+      const updated = await api.fetch<TaskDetail>(`/panel/tasks/${taskId}`);
+      setTask(updated);
+    } catch (err) { console.error(err); }
+  };
 
   const totalSteps = (task?.checklist?.length ?? 0) + 1;
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
@@ -308,30 +338,86 @@ export default function AnalysisWizardPage() {
 
               {/* Comment */}
               {!checklist[currentStep]?.checked && (
-                <>
-                  <div className="space-y-1.5">
-                    <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Observacao</p>
+                <div className="space-y-1.5">
+                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Observacao</p>
+                  <div className="rounded-lg border border-input bg-muted/30 focus-within:ring-2 focus-within:ring-primary/30 focus-within:border-primary transition-all">
+                    {/* Formatting toolbar */}
+                    <div className="flex items-center gap-0.5 px-2 pt-1.5 border-b border-border/50 pb-1">
+                      <button type="button" onClick={() => wrapSelection("**", "**")} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Negrito (Ctrl+B)"><Bold className="h-3.5 w-3.5" /></button>
+                      <button type="button" onClick={() => wrapSelection("*", "*")} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Italico (Ctrl+I)"><Italic className="h-3.5 w-3.5" /></button>
+                      <button type="button" onClick={() => wrapSelection("__", "__")} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Sublinhado (Ctrl+U)"><Underline className="h-3.5 w-3.5" /></button>
+                    </div>
                     <textarea
-                      value={stepComment} onChange={(e) => setStepComment(e.target.value)}
-                      placeholder="Descreva sua verificacao..."
+                      ref={commentTextRef}
+                      value={stepComment}
+                      onChange={(e) => setStepComment(e.target.value)}
+                      placeholder={stepImage ? "Adicionar legenda (opcional)..." : "Descreva sua verificacao ou cole imagem (Ctrl+V)..."}
                       rows={2}
-                      className="w-full rounded-xl border border-input bg-muted/20 px-3 py-2.5 text-sm resize-none focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none"
-                      onPaste={(e) => { for (const item of Array.from(e.clipboardData?.items ?? [])) { if (item.type.startsWith("image/")) { e.preventDefault(); const f = item.getAsFile(); if (f) handleStepImage(f); return; } } }}
+                      className="w-full bg-transparent px-3 py-2 text-sm resize-none outline-none min-h-[52px]"
+                      onKeyDown={(e) => {
+                        if (e.ctrlKey || e.metaKey) {
+                          if (e.key === "b") { e.preventDefault(); wrapSelection("**", "**"); }
+                          if (e.key === "i") { e.preventDefault(); wrapSelection("*", "*"); }
+                          if (e.key === "u") { e.preventDefault(); wrapSelection("__", "__"); }
+                        }
+                      }}
+                      onPaste={(e) => {
+                        const items = e.clipboardData?.items;
+                        if (!items) return;
+                        for (const item of Array.from(items)) {
+                          if (item.type.startsWith("image/")) {
+                            e.preventDefault();
+                            const file = item.getAsFile();
+                            if (file) handleStepImage(file);
+                            return;
+                          }
+                        }
+                      }}
                     />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] text-muted-foreground cursor-pointer hover:bg-muted transition-colors border border-dashed border-border">
-                      <Image className="h-3 w-3" /> Evidencia
-                      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleStepImage(f); e.target.value = ""; }} />
-                    </label>
+                    {/* Image preview */}
                     {stepImagePreview && (
-                      <div className="relative inline-block rounded-lg overflow-hidden border border-border">
-                        <img src={stepImagePreview} alt="" className="h-10 object-contain" />
-                        <button onClick={() => { setStepImage(null); setStepImagePreview(null); }} className="absolute -top-1 -right-1 p-0.5 rounded-full bg-destructive text-white"><X className="h-2.5 w-2.5" /></button>
+                      <div className="px-3 pb-2">
+                        <div className="relative inline-block rounded-lg overflow-hidden border border-border">
+                          <img src={stepImagePreview} alt="Preview" className="max-h-32 max-w-full object-contain" />
+                          <button
+                            onClick={() => { setStepImage(null); setStepImagePreview(null); }}
+                            className="absolute top-1 right-1 p-0.5 rounded-md bg-black/60 text-white hover:bg-destructive transition-colors"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
                       </div>
                     )}
+                    {/* Actions bar */}
+                    <div className="flex items-center justify-between px-2 pb-1.5">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => fileRef.current?.click()}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                          title="Anexar imagem"
+                        >
+                          <Image className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { const input = document.createElement("input"); input.type = "file"; input.accept = ".pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"; input.onchange = (e) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) uploadAttachment(f); }; input.click(); }}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                          title="Anexar arquivo"
+                        >
+                          <Paperclip className="h-4 w-4" />
+                        </button>
+                        <input
+                          ref={fileRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleStepImage(f); e.target.value = ""; }}
+                        />
+                      </div>
+                    </div>
                   </div>
-                </>
+                </div>
               )}
 
               {error && <p className="text-xs text-destructive">{error}</p>}
