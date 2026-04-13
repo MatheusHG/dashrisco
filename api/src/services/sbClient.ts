@@ -73,7 +73,7 @@ async function sbRequest<T>(
   try {
     return await fn(client);
   } catch (err: any) {
-    if (err.response?.status === 401) {
+    if (err.response?.status === 401 || err.response?.status === 403) {
       await tokenManager.refreshToken(prisma);
       const freshClient = await getSbClient(prisma);
       return await fn(freshClient);
