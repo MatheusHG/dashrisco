@@ -91,11 +91,17 @@ class TokenManager {
     // 3. Gerar código TOTP atual
     const authCode = await totpGenerate({ secret: totpSecret });
 
-    // 4. Fazer login
+    // 4. Fazer login (Referer/Origin identificam a empresa no backend multi-tenant)
     const response = await axios.post(
       LOGIN_URL,
       { username, password, auth_code: authCode, useBonus: null, source: "MOBILE" },
-      { headers: { "Content-Type": "application/json" } }
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "Referer": "https://dashboard.marjosports.com.br/",
+          "Origin": "https://dashboard.marjosports.com.br",
+        },
+      }
     );
 
     // 5. Extrair token do header Authorization da resposta
