@@ -30,7 +30,7 @@ export async function clientRoutes(app: FastifyInstance) {
       try {
         const user = await getUser(app.prisma, userId);
         profile = {
-          id: user.id,
+          id: user._id ?? user.id,
           name: user.name ?? user.username ?? "Desconhecido",
           username: user.username ?? "",
           email: user.email ?? "",
