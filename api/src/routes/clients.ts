@@ -1,16 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { authorize } from "../middlewares/auth";
-import { createClient } from "@clickhouse/client";
 import { getUser } from "../services/sbClient";
-
-function getClickHouseClient() {
-  return createClient({
-    url: process.env.CLICKHOUSE_HOST,
-    username: process.env.CLICKHOUSE_USER,
-    password: process.env.CLICKHOUSE_PASSWORD,
-    database: process.env.CLICKHOUSE_DB || "majorsports",
-  });
-}
+import { getClickHouseClient } from "../services/clickhouseClient";
 
 export async function clientRoutes(app: FastifyInstance) {
   // ══════════════════════════════════════════════

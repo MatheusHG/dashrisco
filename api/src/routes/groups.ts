@@ -2,7 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authorize } from "../middlewares/auth";
 import { createLog } from "../middlewares/logger";
-import { createClient } from "@clickhouse/client";
+import { getClickHouseClient } from "../services/clickhouseClient";
 import { getUser, updateUserLocks, FULL_LOCK, UserLocks } from "../services/sbClient";
 
 const timeSlotSchema = z.object({
@@ -48,14 +48,6 @@ const addMemberSchema = z.object({
   ngxUserId: z.string().min(1),
 });
 
-function getClickHouseClient() {
-  return createClient({
-    url: process.env.CLICKHOUSE_HOST,
-    username: process.env.CLICKHOUSE_USER,
-    password: process.env.CLICKHOUSE_PASSWORD,
-    database: process.env.CLICKHOUSE_DB || "majorsports",
-  });
-}
 
 export async function groupRoutes(app: FastifyInstance) {
   // List groups

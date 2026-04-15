@@ -2,7 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authorize } from "../middlewares/auth";
 import { createLog } from "../middlewares/logger";
-import { createClient } from "@clickhouse/client";
+import { getClickHouseClient } from "../services/clickhouseClient";
 
 const OPERATORS = ["EQUAL", "NOT_EQUAL", "GREATER", "GREATER_EQUAL", "LESS", "LESS_EQUAL"] as const;
 
@@ -47,14 +47,6 @@ const createAlertSchema = z.object({
 
 const updateAlertSchema = createAlertSchema.partial();
 
-function getClickHouseClient() {
-  return createClient({
-    url: process.env.CLICKHOUSE_HOST,
-    username: process.env.CLICKHOUSE_USER,
-    password: process.env.CLICKHOUSE_PASSWORD,
-    database: process.env.CLICKHOUSE_DB || "majorsports",
-  });
-}
 
 export async function alertRoutes(app: FastifyInstance) {
   // List alert configs
