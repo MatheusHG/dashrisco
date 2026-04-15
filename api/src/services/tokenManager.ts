@@ -27,7 +27,7 @@ import { invalidateSbCache } from "./sbClient";
 // Força IPv4 no login — a VPS usa IPv6 por padrão mas a NGX só aceita IPv4.
 const ipv4HttpsAgent = new HttpsAgent({ family: 4 });
 
-const LOGIN_URL = "https://loterias-dashboard.ngx.bet/login";
+const LOGIN_URL = process.env.SB_LOGIN_URL || "https://loterias-dashboard.ngx.bet/login";
 const MAX_FAILURES = 3;
 
 class TokenManager {
