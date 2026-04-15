@@ -285,7 +285,7 @@ export default function AnalysisWizardPage() {
                   {showData && (
                     <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 p-3 rounded-lg bg-muted/30">
                       {dataEntries.slice(0, 12).map(([k, v]) => (
-                        <div key={k}><p className="text-[9px] text-muted-foreground">{getFieldLabel(k)}</p><p className="text-[11px] font-medium truncate">{formatValue(k, v)}</p></div>
+                        <div key={k}><p className="text-[9px] text-muted-foreground">{getFieldLabel(k)}</p><p className="text-[11px] font-medium truncate">{k === "user_id" && v ? (<a href={`https://dashboard.marjosports.com.br/back-office/online-client/search?query=ID&field=${String(v)}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{String(v)}</a>) : formatValue(k, v)}</p></div>
                       ))}
                     </div>
                   )}
@@ -329,7 +329,7 @@ export default function AnalysisWizardPage() {
                   {showData && (
                     <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 p-3 rounded-lg bg-muted/20 border border-border/30">
                       {dataEntries.slice(0, 12).map(([k, v]) => (
-                        <div key={k}><p className="text-[9px] text-muted-foreground">{getFieldLabel(k)}</p><p className="text-[11px] font-medium truncate">{formatValue(k, v)}</p></div>
+                        <div key={k}><p className="text-[9px] text-muted-foreground">{getFieldLabel(k)}</p><p className="text-[11px] font-medium truncate">{k === "user_id" && v ? (<a href={`https://dashboard.marjosports.com.br/back-office/online-client/search?query=ID&field=${String(v)}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{String(v)}</a>) : formatValue(k, v)}</p></div>
                       ))}
                     </div>
                   )}
