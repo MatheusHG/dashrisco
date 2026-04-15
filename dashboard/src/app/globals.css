@@ -35,6 +35,18 @@
   --radius-sm: calc(0.5rem - 4px);
 }
 
+/* Select nativo: garante legibilidade no dark mode */
+.dark select {
+  background-color: var(--color-card);
+  color: var(--color-foreground);
+  color-scheme: dark;
+}
+
+.dark select option {
+  background-color: var(--color-card);
+  color: var(--color-foreground);
+}
+
 .dark {
   --color-background: #09090b;
   --color-foreground: #fafafa;
