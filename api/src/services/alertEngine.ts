@@ -40,45 +40,29 @@ export class AlertEngine {
       },
     });
 
-    console.log(
-      `[AlertEngine] processWebhook type=${webhookType}, configs encontradas=${configs.length}, user_id=${normalizedData.user_id ?? "undefined"}, payload=${this.safeStringify(normalizedData)}`
-    );
-
-    if (configs.length === 0) {
-      console.log(`[AlertEngine] Nenhuma config ativa encontrada para type=${webhookType}`);
-    }
-
     for (const config of configs) {
       try {
-        console.log(`[AlertEngine] Iniciando avaliacao da config "${config.name}" (${config.id})`);
-
         // 1) Filtros basicos no webhook data
         const filtersOk = this.evaluateFilters(config.filters, normalizedData);
         if (!filtersOk) {
-          console.log(`[AlertEngine] Config "${config.name}" (${config.id}): filtros NAO passaram. Filters: ${JSON.stringify(config.filters.map(f => ({ field: f.field, op: f.operator, value: f.value, dataValue: normalizedData[f.field] })))}`);
           continue;
         }
-        console.log(`[AlertEngine] Config "${config.name}" (${config.id}): filtros OK`);
 
         // 2) Query ClickHouse (se habilitada)
         let queryResult: Record<string, string> | null = null;
         if (config.queryEnabled && config.clickhouseQuery && this.clickhouse) {
           const result = await this.evaluateClickHouseQuery(config, normalizedData);
           if (!result.passed) {
-            console.log(`[AlertEngine] Config "${config.name}" (${config.id}): query ClickHouse NAO passou`);
             continue;
           }
-          console.log(`[AlertEngine] Config "${config.name}" (${config.id}): query ClickHouse OK`);
           queryResult = result.row;
         }
 
         // 3) Executar acoes
-        console.log(`[AlertEngine] Config "${config.name}" (${config.id}): executando acoes`);
         const enrichedData = queryResult
           ? { ...normalizedData, _queryResult: queryResult }
           : normalizedData;
         await this.executeActions(config, enrichedData);
-        console.log(`[AlertEngine] Config "${config.name}" (${config.id}): acoes finalizadas`);
       } catch (err) {
         console.error(`[AlertEngine] Config "${config.name}" (${config.id}) falhou durante o processamento:`, err);
       }
@@ -272,19 +256,16 @@ export class AlertEngine {
 
     // 1) Criar alerta no banco (sempre)
     const alert = await this.createPanelAlert(config, title, message, data, isWatch);
-    console.log(`[AlertEngine] Config "${config.name}" (${config.id}): panel alert criado id=${alert.id}`);
 
     // 2) Criar task vinculada ao alerta (se configurado e nao WATCH)
     let taskId: string | null = null;
     if (!isWatch && config.createPanelTask) {
       taskId = await this.createPanelTask(config, title, message, data, alert.id);
-      console.log(`[AlertEngine] Config "${config.name}" (${config.id}): panel task criada id=${taskId}`);
     }
 
     // 3) Emitir SSE com taskId (para o botao "Iniciar Analise")
     if (!isWatch) {
       eventBus.emit("panel-alert", { ...alert, taskId });
-      console.log(`[AlertEngine] Config "${config.name}" (${config.id}): evento panel-alert emitido`);
     }
 
     // 4) Acoes paralelas (chat, clickup, webhook externo)
@@ -387,7 +368,6 @@ export class AlertEngine {
   ): Promise<void> {
     try {
       await axios.post(webhookUrl, { text: `*${title}*\n${message}` });
-      console.log(`[AlertEngine] Google Chat enviado com sucesso para ${webhookUrl}`);
     } catch (err: any) {
       console.error(`[AlertEngine] Google Chat failed for ${webhookUrl}: ${err.message}`, err.response?.data ?? "");
       throw err;
@@ -409,7 +389,6 @@ export class AlertEngine {
         data,
         timestamp: new Date().toISOString(),
       }, { timeout: 10000 });
-      console.log(`[AlertEngine] External webhook enviado com sucesso para config ${config.id}`);
     } catch (err: any) {
       console.error(`[AlertEngine] External webhook failed for ${config.id}: ${err.message}`, err.response?.data ?? "");
       throw err;
@@ -437,7 +416,6 @@ export class AlertEngine {
         checklist,
       },
     });
-    console.log(`[AlertEngine] Panel task persistida com sucesso para config ${config.id}`);
     return task.id;
   }
 
@@ -447,10 +425,7 @@ export class AlertEngine {
     message: string
   ): Promise<void> {
     const token = process.env.CLICKUP_API_TOKEN;
-    if (!token) {
-      console.log("[AlertEngine] ClickUp ignorado: CLICKUP_API_TOKEN ausente");
-      return;
-    }
+    if (!token) return;
 
     try {
       await axios.post(
@@ -458,7 +433,6 @@ export class AlertEngine {
         { name: title, description: message, priority: 2 },
         { headers: { Authorization: token } }
       );
-      console.log(`[AlertEngine] ClickUp task criada com sucesso na lista ${listId}`);
     } catch (err: any) {
       console.error(`[AlertEngine] ClickUp failed for list ${listId}: ${err.message}`, err.response?.data ?? "");
       throw err;

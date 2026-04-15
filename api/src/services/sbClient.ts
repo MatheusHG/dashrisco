@@ -1,5 +1,13 @@
 import { PrismaClient } from "@prisma/client";
 import axios, { AxiosInstance } from "axios";
+import { Agent } from "http";
+import { Agent as HttpsAgent } from "https";
+import { tokenManager } from "./tokenManager";
+
+// Força IPv4 em todas as requisições à SB API.
+// A VPS tem IPv6 como padrão mas a NGX só aceita IPv4.
+const ipv4HttpAgent = new Agent({ family: 4 });
+const ipv4HttpsAgent = new HttpsAgent({ family: 4 });
 
 const SB_KEYS = ["SB_API_BASE_URL", "SB_API_TOKEN", "SB_API_REFERER"] as const;
 
@@ -42,6 +50,8 @@ export async function getSbClient(prisma: PrismaClient): Promise<AxiosInstance> 
 
   return axios.create({
     baseURL: config.SB_API_BASE_URL,
+    httpAgent: ipv4HttpAgent,
+    httpsAgent: ipv4HttpsAgent,
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${config.SB_API_TOKEN}`,
@@ -60,17 +70,36 @@ export interface UserLocks {
   [key: string]: boolean;
 }
 
+/**
+ * Executa fn com um SbClient e, em caso de 401, renova o token automaticamente
+ * via TokenManager e repete a chamada uma vez.
+ */
+async function sbRequest<T>(
+  prisma: PrismaClient,
+  fn: (client: AxiosInstance) => Promise<T>
+): Promise<T> {
+  const client = await getSbClient(prisma);
+  try {
+    return await fn(client);
+  } catch (err: any) {
+    if (err.response?.status === 401 || err.response?.status === 403) {
+      await tokenManager.refreshToken(prisma);
+      const freshClient = await getSbClient(prisma);
+      return await fn(freshClient);
+    }
+    throw err;
+  }
+}
+
 export async function getUser(prisma: PrismaClient, userId: string) {
-  const sb = await getSbClient(prisma);
-  const { data } = await sb.get("/user/find", {
-    params: { query: "ID", field: userId },
-  });
+  const data = await sbRequest(prisma, (sb) =>
+    sb.get("/user/find", { params: { query: "ID", field: userId } }).then((r) => r.data)
+  );
   return data as { id: string; locks: UserLocks; [key: string]: any };
 }
 
 export async function updateUserLocks(prisma: PrismaClient, userId: string, locks: UserLocks) {
-  const sb = await getSbClient(prisma);
-  await sb.put(`/user/${userId}/edit-client`, { locks });
+  await sbRequest(prisma, (sb) => sb.put(`/user/${userId}/edit-client`, { locks }));
 }
 
 export const FULL_LOCK: UserLocks = {

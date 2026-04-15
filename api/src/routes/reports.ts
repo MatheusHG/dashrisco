@@ -108,10 +108,12 @@ export async function reportRoutes(app: FastifyInstance) {
         startDate?: string;
         endDate?: string;
         webhookType?: string;
+        alertConfigId?: string;
       };
 
       const where: Record<string, unknown> = {};
-      if (query.webhookType) where.webhookType = query.webhookType;
+      if (query.alertConfigId) where.alertConfigId = query.alertConfigId;
+      else if (query.webhookType) where.webhookType = query.webhookType;
       if (query.startDate || query.endDate) {
         where.createdAt = {};
         if (query.startDate)
@@ -186,9 +188,11 @@ export async function reportRoutes(app: FastifyInstance) {
       const query = request.query as {
         startDate?: string;
         endDate?: string;
+        alertConfigId?: string;
       };
 
       const alertWhere: Record<string, unknown> = {};
+      if (query.alertConfigId) alertWhere.alertConfigId = query.alertConfigId;
       if (query.startDate || query.endDate) {
         alertWhere.createdAt = {};
         if (query.startDate)
@@ -277,10 +281,13 @@ export async function reportRoutes(app: FastifyInstance) {
         startDate?: string;
         endDate?: string;
         webhookType?: string;
+        alertConfigId?: string;
       };
 
       const where: Record<string, unknown> = {};
-      if (query.webhookType) {
+      if (query.alertConfigId) {
+        where.alertConfigId = query.alertConfigId;
+      } else if (query.webhookType) {
         const configsOfType = await app.prisma.alertConfig.findMany({
           where: { webhookType: query.webhookType as any },
           select: { id: true },
@@ -393,10 +400,12 @@ export async function reportRoutes(app: FastifyInstance) {
         startDate?: string;
         endDate?: string;
         webhookType?: string;
+        alertConfigId?: string;
       };
 
       const where: Record<string, unknown> = {};
-      if (query.webhookType) where.webhookType = query.webhookType;
+      if (query.alertConfigId) where.alertConfigId = query.alertConfigId;
+      else if (query.webhookType) where.webhookType = query.webhookType;
       if (query.startDate || query.endDate) {
         where.createdAt = {};
         if (query.startDate)
@@ -429,6 +438,7 @@ export async function reportRoutes(app: FastifyInstance) {
         startDate?: string;
         endDate?: string;
         webhookType?: string;
+        alertConfigId?: string;
       };
 
       const now = new Date();
@@ -439,24 +449,28 @@ export async function reportRoutes(app: FastifyInstance) {
       const prevEnd = new Date(start.getTime());
 
       const alertWhere: Record<string, unknown> = {};
-      if (query.webhookType) alertWhere.webhookType = query.webhookType;
+      if (query.alertConfigId) alertWhere.alertConfigId = query.alertConfigId;
+      else if (query.webhookType) alertWhere.webhookType = query.webhookType;
+
+      const taskWhere: Record<string, unknown> = {};
+      if (query.alertConfigId) taskWhere.alertConfigId = query.alertConfigId;
 
       const [currentAlerts, prevAlerts, currentTasks, prevTasks, currentDoneTasks, prevDoneTasks] = await Promise.all([
         app.prisma.panelAlert.count({ where: { ...alertWhere, createdAt: { gte: start, lte: end } } }),
         app.prisma.panelAlert.count({ where: { ...alertWhere, createdAt: { gte: prevStart, lte: prevEnd } } }),
-        app.prisma.panelTask.count({ where: { createdAt: { gte: start, lte: end } } }),
-        app.prisma.panelTask.count({ where: { createdAt: { gte: prevStart, lte: prevEnd } } }),
-        app.prisma.panelTask.count({ where: { status: "done", completedAt: { gte: start, lte: end } } }),
-        app.prisma.panelTask.count({ where: { status: "done", completedAt: { gte: prevStart, lte: prevEnd } } }),
+        app.prisma.panelTask.count({ where: { ...taskWhere, createdAt: { gte: start, lte: end } } }),
+        app.prisma.panelTask.count({ where: { ...taskWhere, createdAt: { gte: prevStart, lte: prevEnd } } }),
+        app.prisma.panelTask.count({ where: { ...taskWhere, status: "done", completedAt: { gte: start, lte: end } } }),
+        app.prisma.panelTask.count({ where: { ...taskWhere, status: "done", completedAt: { gte: prevStart, lte: prevEnd } } }),
       ]);
 
       // SLA current vs prev
       const currentCompleted = await app.prisma.panelTask.findMany({
-        where: { status: "done", completedAt: { gte: start, lte: end } },
+        where: { ...taskWhere, status: "done", completedAt: { gte: start, lte: end } },
         select: { createdAt: true, completedAt: true },
       });
       const prevCompleted = await app.prisma.panelTask.findMany({
-        where: { status: "done", completedAt: { gte: prevStart, lte: prevEnd } },
+        where: { ...taskWhere, status: "done", completedAt: { gte: prevStart, lte: prevEnd } },
         select: { createdAt: true, completedAt: true },
       });
 
@@ -489,11 +503,13 @@ export async function reportRoutes(app: FastifyInstance) {
         startDate?: string;
         endDate?: string;
         webhookType?: string;
+        alertConfigId?: string;
         limit?: string;
       };
 
       const where: Record<string, unknown> = {};
-      if (query.webhookType) where.webhookType = query.webhookType;
+      if (query.alertConfigId) where.alertConfigId = query.alertConfigId;
+      else if (query.webhookType) where.webhookType = query.webhookType;
       if (query.startDate || query.endDate) {
         where.createdAt = {};
         if (query.startDate)
@@ -612,6 +628,7 @@ export async function reportRoutes(app: FastifyInstance) {
         startDate?: string;
         endDate?: string;
         webhookType?: string;
+        alertConfigId?: string;
       };
 
       const where: Record<string, unknown> = {
@@ -619,7 +636,9 @@ export async function reportRoutes(app: FastifyInstance) {
         completedAt: { not: null },
       };
 
-      if (query.webhookType) {
+      if (query.alertConfigId) {
+        where.alertConfigId = query.alertConfigId;
+      } else if (query.webhookType) {
         const configsOfType = await app.prisma.alertConfig.findMany({
           where: { webhookType: query.webhookType as any },
           select: { id: true },

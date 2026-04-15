@@ -286,36 +286,18 @@ async function start() {
     const eventType = body?.type;
     const webhookType = resolveWebhookType(body);
 
-    console.log(
-      `[Webhook/NGX] Recebido em /webhook/ngx: eventType=${eventType ?? "undefined"}, webhookType=${webhookType ?? "unmapped"}, payload=${safeStringify(body)}`
-    );
-
     // Alertas dinâmicos (AlertEngine + GroupLockEngine)
     if (webhookType) {
       try {
         await alertEngine.processWebhook(webhookType, body);
-        console.log(`[Webhook/NGX] AlertEngine finalizado com sucesso para type=${webhookType}`);
       } catch (err) {
-        console.error(
-          `[Webhook/NGX] Falha no AlertEngine para eventType=${eventType ?? "undefined"} / webhookType=${webhookType}:`,
-          err
-        );
         req.log.error({ err }, "Erro no AlertEngine");
       }
       try {
         await groupLockEngine.processBet(webhookType, body);
-        console.log(`[Webhook/NGX] GroupLockEngine finalizado com sucesso para type=${webhookType}`);
       } catch (err) {
-        console.error(
-          `[Webhook/NGX] Falha no GroupLockEngine para eventType=${eventType ?? "undefined"} / webhookType=${webhookType}:`,
-          err
-        );
         req.log.error({ err }, "Erro no GroupLockEngine");
       }
-    } else {
-      console.log(
-        `[Webhook/NGX] Evento ignorado em /webhook/ngx: type nao mapeado (${eventType ?? "undefined"}).`
-      );
     }
 
     return reply.status(202).send({ ok: true });
@@ -327,48 +309,22 @@ async function start() {
     const payload = req as any;
     const items = Array.isArray(payload) ? payload : [payload];
 
-    console.log(
-      `[Webhook/NGX] Recebido em /webhook/ngx/${id ?? ""}: totalItems=${items.length}`
-    );
-
     for (const [index, item] of items.entries()) {
       const event = item?.body;
-      if (!event) {
-        console.log(`[Webhook/NGX] Item ${index} sem body em /webhook/ngx/${id ?? ""}, ignorando.`);
-        continue;
-      }
+      if (!event) continue;
 
-      const eventType = event?.type;
-      // Alertas dinâmicos
       const webhookType = resolveWebhookType(event);
-      console.log(
-        `[Webhook/NGX] Item ${index} em /webhook/ngx/${id ?? ""}: eventType=${eventType ?? "undefined"}, webhookType=${webhookType ?? "unmapped"}, payload=${safeStringify(event)}`
-      );
       if (webhookType) {
         try {
           await alertEngine.processWebhook(webhookType, event);
-          console.log(`[Webhook/NGX] AlertEngine finalizado com sucesso para item=${index}, type=${webhookType}`);
         } catch (err) {
-          console.error(
-            `[Webhook/NGX] Falha no AlertEngine para item=${index}, eventType=${eventType ?? "undefined"} / webhookType=${webhookType}:`,
-            err
-          );
           req.log.error({ err }, "Erro no AlertEngine");
         }
         try {
           await groupLockEngine.processBet(webhookType, event);
-          console.log(`[Webhook/NGX] GroupLockEngine finalizado com sucesso para item=${index}, type=${webhookType}`);
         } catch (err) {
-          console.error(
-            `[Webhook/NGX] Falha no GroupLockEngine para item=${index}, eventType=${eventType ?? "undefined"} / webhookType=${webhookType}:`,
-            err
-          );
           req.log.error({ err }, "Erro no GroupLockEngine");
         }
-      } else {
-        console.log(
-          `[Webhook/NGX] Item ${index} ignorado em /webhook/ngx/${id ?? ""}: type nao mapeado (${eventType ?? "undefined"}).`
-        );
       }
     }
 
@@ -377,7 +333,6 @@ async function start() {
 
   const port = Number(process.env.API_PORT) || 3002;
   await app.listen({ port, host: "0.0.0.0" });
-  console.log(`API running on port ${port} (webhook + dashboard)`);
 }
 
 start().catch((err) => {

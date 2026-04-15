@@ -74,12 +74,7 @@ export class GroupLockEngine {
   ): Promise<void> {
     const userId = data.user_id as string;
     const userName = (data.user_name as string) || "Desconhecido";
-    if (!userId) {
-      console.log(`[GroupLock] processBet: user_id ausente no webhook, ignorando.`);
-      return;
-    }
-
-    console.log(`[GroupLock] processBet: type=${webhookType}, user_id="${userId}", user_name="${userName}"`);
+    if (!userId) return;
 
     // Buscar grupos ativos que contêm este usuário
     const memberships = await this.prisma.lockGroupMember.findMany({
@@ -92,12 +87,7 @@ export class GroupLockEngine {
       },
     });
 
-    if (memberships.length === 0) {
-      console.log(`[GroupLock] user_id="${userId}" nao pertence a nenhum grupo ativo.`);
-      return;
-    }
-
-    console.log(`[GroupLock] user_id="${userId}" encontrado em ${memberships.length} grupo(s): ${memberships.map(m => `"${m.group.name}"`).join(", ")}`);
+    if (memberships.length === 0) return;
 
     for (const membership of memberships) {
       const group = membership.group;
@@ -108,26 +98,16 @@ export class GroupLockEngine {
         "CASINO_BET",
       ];
       if (!triggerTypes.includes(webhookType)) {
-        console.log(
-          `[GroupLock] Grupo "${group.name}": tipo ${webhookType} nao esta nos triggers [${triggerTypes.join(", ")}], ignorando.`
-        );
         continue;
       }
 
       // 2) Verificar filtros/condições
       const triggerFilters = (group.triggerFilters as unknown as TriggerFilter[]) || [];
-      console.log(`[GroupLock] Grupo "${group.name}": ${triggerFilters.length} filtros configurados.`);
       if (triggerFilters.length > 0) {
         const filtersResult = this.evaluateFilters(triggerFilters, data);
         if (!filtersResult) {
-          console.log(
-            `[GroupLock] Grupo "${group.name}": condicoes NAO satisfeitas. Filtros: ${JSON.stringify(triggerFilters.map(f => ({ field: f.field, op: f.operator, val: f.value, dataVal: data[f.field] })))}`
-          );
           continue;
         }
-        console.log(`[GroupLock] Grupo "${group.name}": condicoes OK`);
-      } else {
-        console.log(`[GroupLock] Grupo "${group.name}": sem filtros (qualquer aposta ativa o bloqueio)`);
       }
 
       // Resolve lock duration based on current hour
@@ -145,9 +125,6 @@ export class GroupLockEngine {
           effectiveLockSeconds * 1000
         );
         existing.unlockAt = new Date(Date.now() + effectiveLockSeconds * 1000);
-        console.log(
-          `[GroupLock] Grupo "${group.name}": timer renovado (trigger: ${userId}). Restore em ${effectiveLockSeconds}s.`
-        );
         continue;
       }
 
@@ -223,10 +200,6 @@ export class GroupLockEngine {
     triggerUserName: string,
     betData: Record<string, unknown>
   ): Promise<void> {
-    console.log(
-      `[GroupLock] Grupo "${group.name}": bloqueando ${group.members.length} membros (trigger: ${triggerUserId})`
-    );
-
     const snapshot = new Map<string, UserLocks>();
     const lockedUsers: string[] = [];
     const failedUsers: string[] = [];
@@ -324,9 +297,6 @@ export class GroupLockEngine {
       }
     }
 
-    console.log(
-      `[GroupLock] Grupo "${group.name}": ${lockedUsers.length} bloqueados, ${failedUsers.length} falharam. Desbloqueio em ${group.lockSeconds}s.`
-    );
   }
 
   /**
@@ -335,10 +305,6 @@ export class GroupLockEngine {
   async unlockGroup(groupId: string): Promise<void> {
     const session = this.activeSessions.get(groupId);
     if (!session) return;
-
-    console.log(
-      `[GroupLock] Grupo "${session.groupName}": desbloqueando ${session.snapshot.size} membros`
-    );
 
     clearTimeout(session.timer);
 
@@ -421,9 +387,6 @@ export class GroupLockEngine {
     }
 
     this.activeSessions.delete(groupId);
-    console.log(
-      `[GroupLock] Grupo "${session.groupName}": sessao encerrada. ${restoredUsers.length} restaurados.`
-    );
   }
 
   /**

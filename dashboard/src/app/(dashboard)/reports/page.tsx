@@ -150,12 +150,10 @@ export default function ReportsPage() {
       if (startDate) params.set("startDate", startDate);
       if (endDate) params.set("endDate", endDate);
       if (selectedWebhookType) params.set("webhookType", selectedWebhookType);
-
-      const rankingParams = new URLSearchParams(params);
-      if (selectedAlertConfig) rankingParams.set("alertConfigId", selectedAlertConfig);
+      if (selectedAlertConfig) params.set("alertConfigId", selectedAlertConfig);
 
       const [rankingData, alertsData, resData, configsData, rankingTypeData, trendsData, hourData, topUsersData, lockData, slaData] = await Promise.all([
-        api.fetch<RankingItem[]>(`/reports/ranking?${rankingParams}`),
+        api.fetch<RankingItem[]>(`/reports/ranking?${params}`),
         api.fetch<AlertsStats>(`/reports/alerts-stats?${params}`),
         api.fetch<ResolutionStats>(`/reports/resolution-stats?${params}`),
         api.fetch<AlertConfigOption[]>("/reports/alert-configs"),
