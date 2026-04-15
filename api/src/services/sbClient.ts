@@ -1,6 +1,13 @@
 import { PrismaClient } from "@prisma/client";
 import axios, { AxiosInstance } from "axios";
+import { Agent } from "http";
+import { Agent as HttpsAgent } from "https";
 import { tokenManager } from "./tokenManager";
+
+// Força IPv4 em todas as requisições à SB API.
+// A VPS tem IPv6 como padrão mas a NGX só aceita IPv4.
+const ipv4HttpAgent = new Agent({ family: 4 });
+const ipv4HttpsAgent = new HttpsAgent({ family: 4 });
 
 const SB_KEYS = ["SB_API_BASE_URL", "SB_API_TOKEN", "SB_API_REFERER"] as const;
 
@@ -43,6 +50,8 @@ export async function getSbClient(prisma: PrismaClient): Promise<AxiosInstance> 
 
   return axios.create({
     baseURL: config.SB_API_BASE_URL,
+    httpAgent: ipv4HttpAgent,
+    httpsAgent: ipv4HttpsAgent,
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${config.SB_API_TOKEN}`,
