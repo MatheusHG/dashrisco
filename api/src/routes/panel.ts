@@ -230,7 +230,7 @@ export async function panelRoutes(app: FastifyInstance) {
         if (query.startDate)
           (where.createdAt as Record<string, unknown>).gte = new Date(query.startDate);
         if (query.endDate)
-          (where.createdAt as Record<string, unknown>).lte = new Date(query.endDate);
+          (where.createdAt as Record<string, unknown>).lte = new Date(query.endDate + "T23:59:59.999Z");
       }
 
       const [tasks, total, users] = await Promise.all([

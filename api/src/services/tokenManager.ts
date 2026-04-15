@@ -18,12 +18,16 @@
  */
 
 import axios from "axios";
+import { Agent as HttpsAgent } from "https";
 import { generate as totpGenerate } from "otplib";
 import { PrismaClient } from "@prisma/client";
 import { decrypt } from "./credentialVault";
 import { invalidateSbCache } from "./sbClient";
 
-const LOGIN_URL = "https://loterias-dashboard.ngx.bet/login";
+// Força IPv4 no login — a VPS usa IPv6 por padrão mas a NGX só aceita IPv4.
+const ipv4HttpsAgent = new HttpsAgent({ family: 4 });
+
+const LOGIN_URL = process.env.SB_LOGIN_URL || "https://loterias-dashboard.ngx.bet/login";
 const MAX_FAILURES = 3;
 
 class TokenManager {
@@ -96,6 +100,7 @@ class TokenManager {
       LOGIN_URL,
       { username, password, auth_code: authCode, useBonus: null, source: "MOBILE" },
       {
+        httpsAgent: ipv4HttpsAgent,
         headers: {
           "Content-Type": "application/json",
           "Referer": "https://dashboard.marjosports.com.br/",

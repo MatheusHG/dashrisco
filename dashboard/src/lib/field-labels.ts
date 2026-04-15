@@ -139,6 +139,43 @@ export const WEBHOOK_TYPES = [
   { value: "USER_REGISTRATION", label: "Cadastro de Usuario", icon: "👤" },
 ];
 
+export const DATE_FIELDS = new Set([
+  "user_birth_date",
+  "user_created_at",
+  "user_kyc_confirmed_at",
+  "withdraw_created_at",
+  "withdraw_confirmed_at",
+  "deposit_created_at",
+  "casino_created_at",
+  "bet_created_at",
+  "bet_resolved_at",
+  "login_at",
+  "login_date",
+]);
+
+export const MONEY_FIELDS = new Set([
+  "user_credits",
+  "user_bonus_credits",
+  "withdraw_value",
+  "deposit_value",
+  "instant_deposit_value",
+  "casino_bet_value",
+  "casino_prize_value",
+  "bet_value",
+  "bet_return_value",
+  "prize_value",
+  "refunded_value",
+]);
+
+/**
+ * Retorna o tipo do campo para determinar qual input renderizar.
+ */
+export function getFieldType(field: string): "date" | "money" | "text" {
+  if (DATE_FIELDS.has(field)) return "date";
+  if (MONEY_FIELDS.has(field)) return "money";
+  return "text";
+}
+
 /**
  * Retorna o label traduzido para um campo, ou o nome original se nao houver traducao.
  */

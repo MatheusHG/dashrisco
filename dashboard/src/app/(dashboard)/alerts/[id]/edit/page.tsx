@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { getFieldLabel, formatCurrency, parseCurrency, WEBHOOK_TYPES } from "@/lib/field-labels";
+import { getFieldLabel, getFieldType, formatCurrency, parseCurrency, WEBHOOK_TYPES } from "@/lib/field-labels";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -462,7 +462,13 @@ export default function EditAlertPage() {
                     <select className="h-9 rounded-xl border border-border/60 bg-transparent px-3 text-sm" value={filter.operator} onChange={(e) => { const u = [...filters]; u[i] = { ...u[i]!, operator: e.target.value }; setFilters(u); }}>
                       {OPERATORS.map((op) => <option key={op.value} value={op.value}>{op.label}</option>)}
                     </select>
-                    <Input placeholder="0,00" value={filter.value ? formatCurrency(String(Math.round(Number(filter.value) * 100))) : ""} onChange={(e) => { const u = [...filters]; u[i] = { ...u[i]!, value: parseCurrency(e.target.value) }; setFilters(u); }} className="flex-1 h-9 rounded-xl" />
+                    {getFieldType(filter.field) === "date" ? (
+                      <Input type="date" value={filter.value || ""} onChange={(e) => { const u = [...filters]; u[i] = { ...u[i]!, value: e.target.value }; setFilters(u); }} className="flex-1 h-9 rounded-xl" />
+                    ) : getFieldType(filter.field) === "money" ? (
+                      <Input placeholder="0,00" value={filter.value ? formatCurrency(String(Math.round(Number(filter.value) * 100))) : ""} onChange={(e) => { const u = [...filters]; u[i] = { ...u[i]!, value: parseCurrency(e.target.value) }; setFilters(u); }} className="flex-1 h-9 rounded-xl" />
+                    ) : (
+                      <Input placeholder="Valor" value={filter.value || ""} onChange={(e) => { const u = [...filters]; u[i] = { ...u[i]!, value: e.target.value }; setFilters(u); }} className="flex-1 h-9 rounded-xl" />
+                    )}
                     <button onClick={() => setFilters(filters.filter((_, j) => j !== i))} className="p-2 text-muted-foreground hover:text-destructive rounded-lg hover:bg-destructive/10"><X className="h-3.5 w-3.5" /></button>
                   </div>
                 </div>
@@ -475,7 +481,7 @@ export default function EditAlertPage() {
               {filters.length > 0 && (
                 <div className="rounded-xl bg-muted/50 p-3">
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Preview</p>
-                  <p className="text-sm font-mono text-foreground">{filters.map((f, i) => `${getFieldLabel(f.field)} ${opLabel(f.operator)} ${f.value ? formatCurrency(String(Math.round(Number(f.value) * 100))) : "?"}${i < filters.length - 1 ? ` ${f.logicGate || "AND"} ` : ""}`).join("")}</p>
+                  <p className="text-sm font-mono text-foreground">{filters.map((f, i) => `${getFieldLabel(f.field)} ${opLabel(f.operator)} ${f.value ? (getFieldType(f.field) === "money" ? formatCurrency(String(Math.round(Number(f.value) * 100))) : f.value) : "?"}${i < filters.length - 1 ? ` ${f.logicGate || "AND"} ` : ""}`).join("")}</p>
                 </div>
               )}
               <Nav back={5} next={7} />

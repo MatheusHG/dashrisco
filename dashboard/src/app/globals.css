@@ -35,6 +35,18 @@
   --radius-sm: calc(0.5rem - 4px);
 }
 
+/* Select nativo: cores fixas para garantir legibilidade em todos os OS/browsers no dark mode */
+.dark select {
+  background-color: #1e1e22;
+  color: #fafafa;
+  color-scheme: dark;
+}
+
+.dark select option {
+  background-color: #1e1e22;
+  color: #fafafa;
+}
+
 .dark {
   --color-background: #09090b;
   --color-foreground: #fafafa;

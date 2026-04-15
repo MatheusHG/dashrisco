@@ -1,16 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { authorize } from "../middlewares/auth";
-import { createClient } from "@clickhouse/client";
 import { getUser } from "../services/sbClient";
-
-function getClickHouseClient() {
-  return createClient({
-    url: process.env.CLICKHOUSE_HOST,
-    username: process.env.CLICKHOUSE_USER,
-    password: process.env.CLICKHOUSE_PASSWORD,
-    database: process.env.CLICKHOUSE_DB || "majorsports",
-  });
-}
+import { getClickHouseClient } from "../services/clickhouseClient";
 
 export async function clientRoutes(app: FastifyInstance) {
   // ══════════════════════════════════════════════
@@ -30,7 +21,7 @@ export async function clientRoutes(app: FastifyInstance) {
       try {
         const user = await getUser(app.prisma, userId);
         profile = {
-          id: user.id,
+          id: user._id ?? user.id,
           name: user.name ?? user.username ?? "Desconhecido",
           username: user.username ?? "",
           email: user.email ?? "",

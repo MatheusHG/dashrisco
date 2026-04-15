@@ -435,7 +435,9 @@ export default function AlertDetailPage() {
                                   {getFieldLabel(key)}
                                 </p>
                                 <p className="text-sm font-medium break-all">
-                                  {formatValue(key, value)}
+                                  {key === "user_id" && value ? (
+                                    <a href={`https://dashboard.marjosports.com.br/back-office/online-client/search?query=ID&field=${String(value)}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{String(value)}</a>
+                                  ) : formatValue(key, value)}
                                 </p>
                               </div>
                             ))}
