@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Pencil, Plus, Database, Play, Loader2, X, Bell, ListTodo, Zap, CheckCircle,
   MessageSquare, ArrowLeft, ArrowRight, Filter, Columns, FileText, Check, Eye,
-  AlertTriangle, CheckSquare, GripVertical, Share2,
+  AlertTriangle, CheckSquare, GripVertical, Share2, Type,
 } from "lucide-react";
 
 
@@ -62,8 +62,9 @@ export default function NewAlertPage() {
   const [createPanelTask, setCreatePanelTask] = useState(false);
   const [createClickupTask, setCreateClickupTask] = useState(false);
   const [clickupListId, setClickupListId] = useState("");
-  const [checklist, setChecklist] = useState<string[]>([]);
+  const [checklist, setChecklist] = useState<{ type: "check" | "text"; label: string }[]>([]);
   const [newCheckItem, setNewCheckItem] = useState("");
+  const [newCheckItemType, setNewCheckItemType] = useState<"check" | "text">("check");
   const [webhookType, setWebhookType] = useState("");
   const [availableFields, setAvailableFields] = useState<FieldSchema[]>([]);
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
@@ -287,9 +288,9 @@ export default function NewAlertPage() {
                   <p className="text-xs text-muted-foreground">Defina os itens que o analista deve verificar ao analisar a task. A task sera concluida automaticamente quando todos forem marcados.</p>
 
                   {checklist.map((item, i) => (
-                    <div key={i} className="flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-2">
-                      <CheckSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                      <span className="text-sm flex-1">{item}</span>
+                    <div key={i} className={`flex items-center gap-2 rounded-lg px-3 py-2 ${item.type === "text" ? "bg-violet-500/10 border border-violet-500/20" : "bg-muted/30"}`}>
+                      {item.type === "text" ? <Type className="h-3.5 w-3.5 text-violet-500 shrink-0" /> : <CheckSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                      <span className={`text-sm flex-1 ${item.type === "text" ? "font-medium text-violet-700 dark:text-violet-300" : ""}`}>{item.label}</span>
                       <button onClick={() => setChecklist(checklist.filter((_, j) => j !== i))} className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
                         <X className="h-3 w-3" />
                       </button>
@@ -297,15 +298,23 @@ export default function NewAlertPage() {
                   ))}
 
                   <div className="flex gap-2">
+                    <button
+                      type="button"
+                      title={newCheckItemType === "check" ? "Checkbox — clique para mudar para Texto" : "Texto — clique para mudar para Checkbox"}
+                      onClick={() => setNewCheckItemType(t => t === "check" ? "text" : "check")}
+                      className={`h-9 w-9 shrink-0 rounded-xl border flex items-center justify-center transition-colors ${newCheckItemType === "text" ? "border-violet-500 bg-violet-500/10 text-violet-600" : "border-border bg-muted/30 text-muted-foreground hover:text-foreground"}`}
+                    >
+                      {newCheckItemType === "text" ? <Type className="h-3.5 w-3.5" /> : <CheckSquare className="h-3.5 w-3.5" />}
+                    </button>
                     <Input
                       value={newCheckItem}
                       onChange={(e) => setNewCheckItem(e.target.value)}
-                      placeholder="Ex: Verificar FTD do usuario"
+                      placeholder={newCheckItemType === "text" ? "Ex: O usuario lucrou desde o ultimo deposito?" : "Ex: Verificar FTD do usuario"}
                       className="h-9 rounded-xl text-sm flex-1"
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && newCheckItem.trim()) {
                           e.preventDefault();
-                          setChecklist([...checklist, newCheckItem.trim()]);
+                          setChecklist([...checklist, { type: newCheckItemType, label: newCheckItem.trim() }]);
                           setNewCheckItem("");
                         }
                       }}
@@ -316,7 +325,7 @@ export default function NewAlertPage() {
                       size="sm"
                       className="rounded-xl gap-1 shrink-0"
                       disabled={!newCheckItem.trim()}
-                      onClick={() => { setChecklist([...checklist, newCheckItem.trim()]); setNewCheckItem(""); }}
+                      onClick={() => { setChecklist([...checklist, { type: newCheckItemType, label: newCheckItem.trim() }]); setNewCheckItem(""); }}
                     >
                       <Plus className="h-3.5 w-3.5" /> Adicionar
                     </Button>
@@ -583,7 +592,10 @@ export default function NewAlertPage() {
                   <div className="rounded-xl bg-muted/30 p-3 space-y-1.5">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-1"><CheckSquare className="h-3 w-3" />Checklist ({checklist.length} itens)</p>
                     {checklist.map((item, i) => (
-                      <div key={i} className="flex items-center gap-2 text-xs"><CheckSquare className="h-3 w-3 text-muted-foreground" />{item}</div>
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        {item.type === "text" ? <Type className="h-3 w-3 text-violet-500" /> : <CheckSquare className="h-3 w-3 text-muted-foreground" />}
+                        {item.label}
+                      </div>
                     ))}
                   </div>
                 )}

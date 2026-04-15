@@ -29,7 +29,10 @@ const createAlertSchema = z.object({
   createPanelTask: z.boolean().default(false),
   createClickupTask: z.boolean().default(false),
   clickupListId: z.string().optional().nullable(),
-  checklist: z.array(z.string()).optional().default([]),
+  checklist: z.array(z.union([
+    z.string(),
+    z.object({ type: z.enum(["check", "text"]), label: z.string() }),
+  ])).optional().default([]),
   externalWebhookUrl: z.string().url().optional().nullable(),
   selectedFields: z.array(z.string()),
   filters: z.array(z.object({
@@ -47,6 +50,10 @@ const createAlertSchema = z.object({
 
 const updateAlertSchema = createAlertSchema.partial();
 
+type ChecklistItem = { type: "check" | "text"; label: string };
+function normalizeChecklist(raw: (string | ChecklistItem)[]): ChecklistItem[] {
+  return raw.map((item) => (typeof item === "string" ? { type: "check", label: item } : item));
+}
 
 export async function alertRoutes(app: FastifyInstance) {
   // List alert configs
@@ -118,7 +125,7 @@ export async function alertRoutes(app: FastifyInstance) {
           createPanelTask: body.createPanelTask,
           createClickupTask: body.createClickupTask,
           clickupListId: body.clickupListId ?? null,
-          checklist: body.checklist ?? [],
+          checklist: normalizeChecklist(body.checklist ?? []),
           externalWebhookUrl: body.externalWebhookUrl ?? null,
           selectedFields: body.selectedFields,
           createdBy: request.currentUser!.id,
@@ -183,7 +190,7 @@ export async function alertRoutes(app: FastifyInstance) {
           ...(body.createPanelTask !== undefined && { createPanelTask: body.createPanelTask }),
           ...(body.createClickupTask !== undefined && { createClickupTask: body.createClickupTask }),
           ...(body.clickupListId !== undefined && { clickupListId: body.clickupListId ?? null }),
-          ...(body.checklist !== undefined && { checklist: body.checklist }),
+          ...(body.checklist !== undefined && { checklist: normalizeChecklist(body.checklist) }),
           ...(body.externalWebhookUrl !== undefined && { externalWebhookUrl: body.externalWebhookUrl ?? null }),
           ...(body.selectedFields !== undefined && { selectedFields: body.selectedFields }),
           ...(body.queryEnabled !== undefined && { queryEnabled: body.queryEnabled }),

@@ -72,7 +72,7 @@ const PRIORITY_STYLES: Record<number, { label: string; bg: string; text: string;
 
 interface TaskComment { id: string; userId: string | null; userName: string; message: string; imageUrl: string | null; createdAt: string; }
 interface TaskAttachment { id: string; fileName: string; fileType: string; fileSize: number; filePath: string; createdAt: string; }
-interface ChecklistItem { label: string; checked: boolean; }
+interface ChecklistItem { label: string; checked: boolean; type?: string; }
 interface PanelTaskItem { id: string; title: string; description: string | null; status: string; priority: number; data: Record<string, unknown> | null; checklist?: ChecklistItem[]; assignedTo: string | null; completedBy: string | null; createdAt: string; updatedAt: string; _count?: { comments: number }; }
 interface TaskDetail extends PanelTaskItem { comments: TaskComment[]; attachments: TaskAttachment[]; assignedUser: { id: string; name: string } | null; completedByUser: { id: string; name: string } | null; allUsers: { id: string; name: string }[]; }
 interface HistoryEntry { id: string; action: string; details: Record<string, unknown> | null; createdAt: string; user: { id: string; name: string } | null; }
@@ -198,8 +198,8 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [newComment, setNewComment] = useState("");
-  const [commentImage, setCommentImage] = useState<globalThis.File | null>(null);
-  const [commentImagePreview, setCommentImagePreview] = useState<string | null>(null);
+  const [commentImages, setCommentImages] = useState<globalThis.File[]>([]);
+  const [commentImagePreviews, setCommentImagePreviews] = useState<string[]>([]);
   const [sendingComment, setSendingComment] = useState(false);
   const commentFileRef = useRef<HTMLInputElement>(null);
   const commentTextRef = useRef<HTMLTextAreaElement>(null);
@@ -250,14 +250,14 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
   };
 
   const addComment = async () => {
-    if ((!newComment.trim() && !commentImage) || sendingComment) return;
+    if ((!newComment.trim() && commentImages.length === 0) || sendingComment) return;
     setSendingComment(true);
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
-      if (commentImage) {
+      if (commentImages.length > 0) {
         const formData = new FormData();
         formData.append("message", newComment.trim());
-        formData.append("image", commentImage);
+        commentImages.forEach((img) => formData.append("images", img));
         await fetch(`${apiUrl}/panel/tasks/${taskId}/comments`, {
           method: "POST",
           headers: { Authorization: `Bearer ${api.getAccessToken()}` },
@@ -267,8 +267,8 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
         await api.fetch(`/panel/tasks/${taskId}/comments`, { method: "POST", body: JSON.stringify({ message: newComment.trim() }) });
       }
       setNewComment("");
-      setCommentImage(null);
-      setCommentImagePreview(null);
+      setCommentImages([]);
+      setCommentImagePreviews([]);
       await fetchTask();
     } catch (err) { console.error(err); }
     finally { setSendingComment(false); }
@@ -276,15 +276,15 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
 
   const handleCommentImage = (file: globalThis.File) => {
     if (!file.type.startsWith("image/")) return;
-    setCommentImage(file);
+    setCommentImages((prev) => [...prev, file]);
     const reader = new FileReader();
-    reader.onload = () => setCommentImagePreview(reader.result as string);
+    reader.onload = () => setCommentImagePreviews((prev) => [...prev, reader.result as string]);
     reader.readAsDataURL(file);
   };
 
-  const removeCommentImage = () => {
-    setCommentImage(null);
-    setCommentImagePreview(null);
+  const removeCommentImage = (index: number) => {
+    setCommentImages((prev) => prev.filter((_, i) => i !== index));
+    setCommentImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
   const toggleCheckItem = async (index: number, checked: boolean) => {
@@ -482,49 +482,42 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
             </div>
 
             {/* Checklist */}
-            {(task.checklist ?? []).length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                    <CheckSquare className="h-3.5 w-3.5" />
-                    Verificacoes ({(task.checklist ?? []).filter((c) => c.checked).length}/{(task.checklist ?? []).length})
-                  </p>
-                  <span className="text-[10px] text-muted-foreground">
-                    {Math.round(((task.checklist ?? []).filter((c) => c.checked).length / (task.checklist ?? []).length) * 100)}%
-                  </span>
+            {(task.checklist ?? []).length > 0 && (() => {
+              const checkItems = (task.checklist ?? []).filter(c => c.type !== "text");
+              const doneCount = checkItems.filter(c => c.checked).length;
+              const totalCount = checkItems.length;
+              const pct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 100;
+              return (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <CheckSquare className="h-3.5 w-3.5" />
+                      Verificacoes ({doneCount}/{totalCount})
+                    </p>
+                    <span className="text-[10px] text-muted-foreground">{pct}%</span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden mb-3">
+                    <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
+                  </div>
+                  <div className="space-y-1">
+                    {(task.checklist ?? []).map((item, i) => (
+                      item.type === "text" ? (
+                        <div key={i} className="px-3 py-1.5">
+                          <span className="text-xs font-semibold text-foreground">{item.label}</span>
+                        </div>
+                      ) : (
+                        <label key={i} className={`flex items-center gap-3 rounded-lg px-3 py-2 cursor-pointer transition-colors hover:bg-muted/40 ${item.checked ? "opacity-60" : ""}`}>
+                          <button type="button" onClick={() => toggleCheckItem(i, !item.checked)} className="shrink-0">
+                            {item.checked ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4 text-muted-foreground" />}
+                          </button>
+                          <span className={`text-sm ${item.checked ? "line-through text-muted-foreground" : "text-foreground"}`}>{item.label}</span>
+                        </label>
+                      )
+                    ))}
+                  </div>
                 </div>
-                {/* Progress bar */}
-                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden mb-3">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all duration-300"
-                    style={{ width: `${((task.checklist ?? []).filter((c) => c.checked).length / (task.checklist ?? []).length) * 100}%` }}
-                  />
-                </div>
-                <div className="space-y-1">
-                  {(task.checklist ?? []).map((item, i) => (
-                    <label
-                      key={i}
-                      className={`flex items-center gap-3 rounded-lg px-3 py-2 cursor-pointer transition-colors hover:bg-muted/40 ${item.checked ? "opacity-60" : ""}`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => toggleCheckItem(i, !item.checked)}
-                        className="shrink-0"
-                      >
-                        {item.checked ? (
-                          <CheckSquare className="h-4 w-4 text-primary" />
-                        ) : (
-                          <Square className="h-4 w-4 text-muted-foreground" />
-                        )}
-                      </button>
-                      <span className={`text-sm ${item.checked ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                        {item.label}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Webhook data (collapsible) */}
             {dataEntries.length > 0 && (
@@ -703,7 +696,7 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
                       ref={commentTextRef}
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
-                      placeholder={commentImage ? "Adicionar legenda (opcional)..." : "Escrever comentario ou colar imagem (Ctrl+V)..."}
+                      placeholder={commentImages.length > 0 ? "Adicionar legenda (opcional)..." : "Escrever comentario ou colar imagem (Ctrl+V)..."}
                       rows={2}
                       className="w-full bg-transparent px-3 py-2 text-sm resize-none outline-none min-h-[52px]"
                       onKeyDown={(e) => {
@@ -722,23 +715,24 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
                             e.preventDefault();
                             const file = item.getAsFile();
                             if (file) handleCommentImage(file);
-                            return;
                           }
                         }
                       }}
                     />
-                    {/* Image preview */}
-                    {commentImagePreview && (
-                      <div className="px-3 pb-2">
-                        <div className="relative inline-block rounded-lg overflow-hidden border border-border">
-                          <img src={commentImagePreview} alt="Preview" className="max-h-32 max-w-full object-contain" />
-                          <button
-                            onClick={removeCommentImage}
-                            className="absolute top-1 right-1 p-0.5 rounded-md bg-black/60 text-white hover:bg-destructive transition-colors"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
+                    {/* Image previews */}
+                    {commentImagePreviews.length > 0 && (
+                      <div className="px-3 pb-2 flex flex-wrap gap-2">
+                        {commentImagePreviews.map((preview, idx) => (
+                          <div key={idx} className="relative inline-block rounded-lg overflow-hidden border border-border">
+                            <img src={preview} alt={`Preview ${idx + 1}`} className="max-h-32 max-w-[120px] object-contain" />
+                            <button
+                              onClick={() => removeCommentImage(idx)}
+                              className="absolute top-1 right-1 p-0.5 rounded-md bg-black/60 text-white hover:bg-destructive transition-colors"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     )}
                     {/* Actions bar */}
@@ -765,12 +759,13 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
                           type="file"
                           accept="image/*"
                           className="hidden"
-                          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCommentImage(f); e.target.value = ""; }}
+                          onChange={(e) => { Array.from(e.target.files || []).forEach(handleCommentImage); e.target.value = ""; }}
+                          multiple
                         />
                       </div>
                       <button
                         onClick={addComment}
-                        disabled={(!newComment.trim() && !commentImage) || sendingComment}
+                        disabled={(!newComment.trim() && commentImages.length === 0) || sendingComment}
                         className="p-1.5 rounded-md text-primary hover:bg-primary/10 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
                       >
                         {sendingComment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -808,14 +803,22 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
                                 </button>
                               </div>
                               {item.message && <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{parseFormatted(item.message)}</p>}
-                              {item.imageUrl && (
-                                <img
-                                  src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002"}/uploads/${item.imageUrl}`}
-                                  alt="Imagem do comentario"
-                                  className="mt-2 max-h-48 rounded-lg border border-border cursor-pointer hover:opacity-90 transition-opacity"
-                                  onClick={(e) => { e.stopPropagation(); setPreviewImage(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002"}/uploads/${item.imageUrl}`); }}
-                                />
-                              )}
+                              {item.imageUrl && (() => {
+                                const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
+                                const urls: string[] = item.imageUrl.startsWith("[")
+                                  ? JSON.parse(item.imageUrl).map((p: string) => `${apiUrl}/uploads/${p}`)
+                                  : [`${apiUrl}/uploads/${item.imageUrl}`];
+                                return (
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {urls.map((url, ui) => (
+                                      <img key={ui} src={url} alt={`Imagem ${ui + 1}`}
+                                        className="max-h-48 rounded-lg border border-border cursor-pointer hover:opacity-90 transition-opacity"
+                                        onClick={(e) => { e.stopPropagation(); setPreviewImage(url); }}
+                                      />
+                                    ))}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>
