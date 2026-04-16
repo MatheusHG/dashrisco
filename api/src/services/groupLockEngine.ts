@@ -222,7 +222,16 @@ export class GroupLockEngine {
       }
     }
 
-    // 2) Agendar desbloqueio automático
+    // 2) Abortar se nenhum membro foi bloqueado (evita sessão e unlock espúrios)
+    if (lockedUsers.length === 0) {
+      console.warn(
+        `[GroupLock] Nenhum usuario bloqueado em "${group.name}" — sessao abortada` +
+        (failedUsers.length > 0 ? ` (falhas: ${failedUsers.join(", ")})` : "")
+      );
+      return;
+    }
+
+    // 3) Agendar desbloqueio automático
     const timer = setTimeout(
       () => this.unlockGroup(group.id),
       group.lockSeconds * 1000
@@ -406,5 +415,74 @@ export class GroupLockEngine {
 
   getSession(groupId: string): ActiveSession | undefined {
     return this.activeSessions.get(groupId);
+  }
+
+  /**
+   * Reconcilia estado stale ao iniciar o servidor.
+   *
+   * Se o servidor reiniciou enquanto um grupo estava "locked", o timer
+   * in-memory foi perdido mas o último evento no DB ainda diz "locked".
+   * Isso faz a tela mostrar "Bloqueado" indefinidamente.
+   *
+   * Para cada grupo cujo último evento é "locked" e cujo tempo de
+   * bloqueio já expirou (createdAt + lockSeconds < agora), cria um
+   * evento "unlocked" de reconciliação para corrigir o estado.
+   *
+   * Se o bloqueio ainda não expirou, re-registra um timer para o tempo
+   * restante (sem snapshot, o desbloqueio só cria o evento no DB).
+   */
+  async reconcileStaleState(): Promise<void> {
+    const groups = await this.prisma.lockGroup.findMany({
+      include: {
+        events: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+      },
+    });
+
+    const now = Date.now();
+
+    for (const group of groups) {
+      const lastEvent = group.events[0];
+      if (!lastEvent || lastEvent.action !== "locked") continue;
+
+      const lockedAt = lastEvent.createdAt.getTime();
+      const unlockAt = lockedAt + group.lockSeconds * 1000;
+
+      if (now >= unlockAt) {
+        // Bloqueio já expirou — reconciliar no DB
+        await this.prisma.lockGroupEvent.create({
+          data: {
+            groupId: group.id,
+            action: "unlocked",
+            userName: "Sistema (reconciliação ao reiniciar)",
+            reason: `Bloqueio de ${group.lockSeconds}s expirou enquanto o servidor estava offline.`,
+          },
+        });
+        console.log(`[GroupLock] Reconciled expired lock for group "${group.name}"`);
+      } else {
+        // Bloqueio ainda ativo — re-registrar timer para o tempo restante
+        const remainingMs = unlockAt - now;
+        const timer = setTimeout(
+          () => this.unlockGroup(group.id),
+          remainingMs
+        );
+        this.activeSessions.set(group.id, {
+          groupId: group.id,
+          groupName: group.name,
+          triggerUserId: "unknown",
+          triggerUserName: "Sistema (restart)",
+          snapshot: new Map(), // sem snapshot após restart
+          timer,
+          lockedAt: new Date(lockedAt),
+          unlockAt: new Date(unlockAt),
+        });
+        console.log(
+          `[GroupLock] Re-registered active lock for group "${group.name}", ` +
+          `unlocks in ${Math.round(remainingMs / 1000)}s`
+        );
+      }
+    }
   }
 }
