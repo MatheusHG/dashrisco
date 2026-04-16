@@ -598,7 +598,7 @@ export async function panelRoutes(app: FastifyInstance) {
       const { id } = request.params;
 
       let message = "";
-      let imageUrl: string | null = null;
+      const imagePaths: string[] = [];
 
       // Check if multipart (image upload) or JSON
       const contentType = request.headers["content-type"] || "";
@@ -607,7 +607,7 @@ export async function panelRoutes(app: FastifyInstance) {
         for await (const part of parts) {
           if (part.type === "field" && part.fieldname === "message") {
             message = (part.value as string) || "";
-          } else if (part.type === "file" && part.fieldname === "image") {
+          } else if (part.type === "file" && (part.fieldname === "image" || part.fieldname === "images")) {
             const uploadsDir = path.join(__dirname, "..", "..", "uploads", "comments");
             fs.mkdirSync(uploadsDir, { recursive: true });
             const ext = path.extname(part.filename || ".png");
@@ -615,13 +615,20 @@ export async function panelRoutes(app: FastifyInstance) {
             const filePath = path.join(uploadsDir, storedName);
             const buffer = await part.toBuffer();
             fs.writeFileSync(filePath, buffer);
-            imageUrl = `comments/${storedName}`;
+            imagePaths.push(`comments/${storedName}`);
           }
         }
       } else {
         const body = request.body as { message?: string };
         message = body.message?.trim() || "";
       }
+
+      // Serialize: single image as plain string (backward compat), multiple as JSON array
+      const imageUrl: string | null = imagePaths.length === 0
+        ? null
+        : imagePaths.length === 1
+          ? imagePaths[0]!
+          : JSON.stringify(imagePaths);
 
       if (!message && !imageUrl) {
         return reply.status(400).send({ error: "Mensagem ou imagem obrigatoria" });

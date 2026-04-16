@@ -12,7 +12,7 @@ import {
   Eye, Bold, Italic, Underline, Paperclip, Send,
 } from "lucide-react";
 
-interface ChecklistItem { label: string; checked: boolean; }
+interface ChecklistItem { label: string; checked: boolean; type?: string; }
 interface TaskDetail {
   id: string; title: string; description: string | null; status: string;
   data: Record<string, unknown> | null; checklist: ChecklistItem[];
@@ -41,8 +41,8 @@ export default function AnalysisWizardPage() {
   const [error, setError] = useState("");
   const [currentStep, setCurrentStep] = useState(0);
   const [stepComment, setStepComment] = useState("");
-  const [stepImage, setStepImage] = useState<File | null>(null);
-  const [stepImagePreview, setStepImagePreview] = useState<string | null>(null);
+  const [stepImages, setStepImages] = useState<File[]>([]);
+  const [stepImagePreviews, setStepImagePreviews] = useState<string[]>([]);
   const [submittingStep, setSubmittingStep] = useState(false);
   const [parecer, setParecer] = useState("");
   const [submittingFinal, setSubmittingFinal] = useState(false);
@@ -80,7 +80,7 @@ export default function AnalysisWizardPage() {
     } catch (err) { console.error(err); }
   };
 
-  const totalSteps = (task?.checklist?.length ?? 0) + 1;
+  const totalSteps = (task?.checklist?.filter(c => c.type !== "text").length ?? 0) + 1;
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
 
   const goBack = () => router.back();
@@ -106,9 +106,9 @@ export default function AnalysisWizardPage() {
   }, [taskId]);
 
   const handleStepImage = (file: File) => {
-    setStepImage(file);
+    setStepImages((prev) => [...prev, file]);
     const reader = new FileReader();
-    reader.onload = () => setStepImagePreview(reader.result as string);
+    reader.onload = () => setStepImagePreviews((prev) => [...prev, reader.result as string]);
     reader.readAsDataURL(file);
   };
 
@@ -118,11 +118,11 @@ export default function AnalysisWizardPage() {
     try {
       await api.fetch(`/panel/tasks/${taskId}/checklist`, { method: "PATCH", body: JSON.stringify({ index: currentStep, checked: true }) });
       const stepPrefix = `[Passo ${currentStep + 1}]`;
-      if (stepComment.trim() || stepImage) {
-        if (stepImage) {
+      if (stepComment.trim() || stepImages.length > 0) {
+        if (stepImages.length > 0) {
           const formData = new FormData();
           formData.append("message", `${stepPrefix} ${stepComment.trim()}`);
-          formData.append("image", stepImage);
+          stepImages.forEach((img) => formData.append("images", img));
           await fetch(`${apiUrl}/panel/tasks/${taskId}/comments`, { method: "POST", headers: { Authorization: `Bearer ${api.getAccessToken()}` }, body: formData });
         } else {
           await api.fetch(`/panel/tasks/${taskId}/comments`, { method: "POST", body: JSON.stringify({ message: `${stepPrefix} ${stepComment.trim()}` }) });
@@ -130,7 +130,7 @@ export default function AnalysisWizardPage() {
       }
       const updated = await api.fetch<TaskDetail>(`/panel/tasks/${taskId}`);
       setTask(updated);
-      setStepComment(""); setStepImage(null); setStepImagePreview(null);
+      setStepComment(""); setStepImages([]); setStepImagePreviews([]);
       setCurrentStep((s) => s + 1);
     } catch (err: any) { setError(err.message || "Erro"); }
     finally { setSubmittingStep(false); }
@@ -148,8 +148,11 @@ export default function AnalysisWizardPage() {
 
   const checklist = task?.checklist ?? [];
   const isParecerStep = currentStep >= checklist.length;
-  const completedSteps = checklist.filter((c) => c.checked).length;
-  const progress = totalSteps > 0 ? Math.round(((isParecerStep ? checklist.length : completedSteps) / totalSteps) * 100) : 0;
+  const isTextStep = !isParecerStep && checklist[currentStep]?.type === "text";
+  const checkItems = checklist.filter((c) => c.type !== "text");
+  const completedSteps = checkItems.filter((c) => c.checked).length;
+  const effectiveTotalSteps = checkItems.length + 1; // +1 for parecer
+  const progress = effectiveTotalSteps > 0 ? Math.round(((isParecerStep ? checkItems.length : completedSteps) / effectiveTotalSteps) * 100) : 0;
   const dataEntries = task?.data ? Object.entries(task.data).filter(([k]) => k !== "type").filter(([, v]) => v !== null && v !== undefined && v !== "") : [];
 
   // ═══ MODAL WRAPPER ═══
@@ -299,14 +302,14 @@ export default function AnalysisWizardPage() {
             <div className="p-6 space-y-5">
               {/* Step header */}
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20">
-                  <span className="text-lg font-bold text-primary">{currentStep + 1}</span>
+                <div className={`flex h-12 w-12 items-center justify-center rounded-xl border ${isTextStep ? "bg-gradient-to-br from-violet-500/20 to-violet-500/5 border-violet-500/20" : "bg-gradient-to-br from-primary/20 to-primary/5 border-primary/20"}`}>
+                  <span className={`text-lg font-bold ${isTextStep ? "text-violet-500" : "text-primary"}`}>{currentStep + 1}</span>
                 </div>
                 <div className="flex-1">
                   <h2 className="text-base font-semibold text-foreground">{checklist[currentStep]?.label}</h2>
-                  <p className="text-[11px] text-muted-foreground">Verifique e registre sua analise</p>
+                  <p className="text-[11px] text-muted-foreground">{isTextStep ? "Leia e avance para o proximo item" : "Verifique e registre sua analise"}</p>
                 </div>
-                {checklist[currentStep]?.checked && (
+                {!isTextStep && checklist[currentStep]?.checked && (
                   <Badge className="bg-emerald-500/10 text-emerald-600 border-0 gap-1"><CheckCircle className="h-3 w-3" />Feito</Badge>
                 )}
               </div>
@@ -337,7 +340,7 @@ export default function AnalysisWizardPage() {
               )}
 
               {/* Comment */}
-              {!checklist[currentStep]?.checked && (
+              {!isTextStep && !checklist[currentStep]?.checked && (
                 <div className="space-y-1.5">
                   <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Observacao</p>
                   <div className="rounded-lg border border-input bg-muted/30 focus-within:ring-2 focus-within:ring-primary/30 focus-within:border-primary transition-all">
@@ -351,10 +354,15 @@ export default function AnalysisWizardPage() {
                       ref={commentTextRef}
                       value={stepComment}
                       onChange={(e) => setStepComment(e.target.value)}
-                      placeholder={stepImage ? "Adicionar legenda (opcional)..." : "Descreva sua verificacao ou cole imagem (Ctrl+V)..."}
+                      placeholder={stepImages.length > 0 ? "Adicionar legenda (opcional)..." : "Descreva sua verificacao ou cole imagem (Ctrl+V)..."}
                       rows={2}
                       className="w-full bg-transparent px-3 py-2 text-sm resize-none outline-none min-h-[52px]"
                       onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+                          e.preventDefault();
+                          if (!submittingStep) confirmStep();
+                          return;
+                        }
                         if (e.ctrlKey || e.metaKey) {
                           if (e.key === "b") { e.preventDefault(); wrapSelection("**", "**"); }
                           if (e.key === "i") { e.preventDefault(); wrapSelection("*", "*"); }
@@ -369,23 +377,24 @@ export default function AnalysisWizardPage() {
                             e.preventDefault();
                             const file = item.getAsFile();
                             if (file) handleStepImage(file);
-                            return;
                           }
                         }
                       }}
                     />
-                    {/* Image preview */}
-                    {stepImagePreview && (
-                      <div className="px-3 pb-2">
-                        <div className="relative inline-block rounded-lg overflow-hidden border border-border">
-                          <img src={stepImagePreview} alt="Preview" className="max-h-32 max-w-full object-contain" />
-                          <button
-                            onClick={() => { setStepImage(null); setStepImagePreview(null); }}
-                            className="absolute top-1 right-1 p-0.5 rounded-md bg-black/60 text-white hover:bg-destructive transition-colors"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
+                    {/* Image previews */}
+                    {stepImagePreviews.length > 0 && (
+                      <div className="px-3 pb-2 flex flex-wrap gap-2">
+                        {stepImagePreviews.map((preview, idx) => (
+                          <div key={idx} className="relative inline-block rounded-lg overflow-hidden border border-border">
+                            <img src={preview} alt={`Preview ${idx + 1}`} className="max-h-32 max-w-[120px] object-contain" />
+                            <button
+                              onClick={() => { setStepImages(p => p.filter((_, i) => i !== idx)); setStepImagePreviews(p => p.filter((_, i) => i !== idx)); }}
+                              className="absolute top-1 right-1 p-0.5 rounded-md bg-black/60 text-white hover:bg-destructive transition-colors"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     )}
                     {/* Actions bar */}
@@ -412,7 +421,8 @@ export default function AnalysisWizardPage() {
                           type="file"
                           accept="image/*"
                           className="hidden"
-                          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleStepImage(f); e.target.value = ""; }}
+                          onChange={(e) => { Array.from(e.target.files || []).forEach(handleStepImage); e.target.value = ""; }}
+                          multiple
                         />
                       </div>
                     </div>
@@ -427,7 +437,11 @@ export default function AnalysisWizardPage() {
                 <Button variant="ghost" size="sm" className="rounded-xl gap-1 text-xs" disabled={currentStep === 0} onClick={() => setCurrentStep((s) => s - 1)}>
                   <ArrowLeft className="h-3 w-3" /> Voltar
                 </Button>
-                {!checklist[currentStep]?.checked ? (
+                {isTextStep ? (
+                  <Button size="sm" className="rounded-xl gap-1 text-xs" onClick={() => setCurrentStep((s) => s + 1)}>
+                    Proximo <ArrowRight className="h-3 w-3" />
+                  </Button>
+                ) : !checklist[currentStep]?.checked ? (
                   <Button size="sm" className="rounded-xl gap-1.5 text-xs bg-gradient-to-r from-primary to-primary/80 shadow-lg shadow-primary/20" onClick={confirmStep} disabled={submittingStep}>
                     {submittingStep ? <Loader2 className="h-3 w-3 animate-spin" /> : <CheckCircle className="h-3 w-3" />}
                     {submittingStep ? "Salvando..." : "Confirmar"}

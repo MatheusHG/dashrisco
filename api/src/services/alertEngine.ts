@@ -402,8 +402,13 @@ export class AlertEngine {
     data: Record<string, unknown>,
     panelAlertId: string
   ): Promise<string> {
-    const checklistLabels = (config.checklist as string[]) || [];
-    const checklist = checklistLabels.map((label) => ({ label, checked: false }));
+    type RawItem = string | { type?: string; label: string };
+    const checklistRaw = (config.checklist as RawItem[]) || [];
+    const checklist = checklistRaw.map((item) => {
+      const label = typeof item === "string" ? item : item.label;
+      const type = typeof item === "string" ? "check" : (item.type ?? "check");
+      return { label, type, checked: type === "text" };
+    });
 
     const task = await this.prisma.panelTask.create({
       data: {
