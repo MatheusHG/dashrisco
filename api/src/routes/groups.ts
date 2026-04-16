@@ -318,21 +318,42 @@ export async function groupRoutes(app: FastifyInstance) {
 
       const lockedUsers: string[] = [];
       const failedUsers: string[] = [];
+      const snapshot = new Map<string, UserLocks>();
 
-      // Lock each member via SB API
-      for (const member of group.members) {
-        try {
+      // Gerar UM auth_code e bloquear todos em paralelo
+      const { tokenManager } = await import("../services/tokenManager");
+      const auth_code = await tokenManager.generateTotpCode(app.prisma);
+
+      const lockResults = await Promise.allSettled(
+        group.members.map(async (member) => {
           const user = await getUser(app.prisma, member.ngxUserId);
-          await updateUserLocks(app.prisma, member.ngxUserId, {
-            ...user.locks,
-            ...FULL_LOCK,
-          });
-          lockedUsers.push(member.ngxUserId);
-          request.log.info(`[GroupLock] User ${member.ngxUserId} locked`);
-        } catch (err: any) {
-          failedUsers.push(member.ngxUserId);
-          request.log.error(`[GroupLock] Failed to lock ${member.ngxUserId}: ${err.message}`);
+          await updateUserLocks(app.prisma, member.ngxUserId, { ...user.locks, ...FULL_LOCK }, auth_code);
+          return { userId: member.ngxUserId, originalLocks: { ...user.locks } };
+        })
+      );
+
+      lockResults.forEach((result, i) => {
+        if (result.status === "fulfilled") {
+          snapshot.set(result.value.userId, result.value.originalLocks);
+          lockedUsers.push(result.value.userId);
+          request.log.info(`[GroupLock] User ${result.value.userId} locked`);
+        } else {
+          const userId = group.members[i]!.ngxUserId;
+          failedUsers.push(userId);
+          request.log.error(`[GroupLock] Failed to lock ${userId}: ${result.reason?.message}`);
         }
+      });
+
+      // Registrar sessão no engine para countdown e desbloqueio automático
+      if (lockedUsers.length > 0) {
+        app.groupLockEngine?.startSession(
+          id,
+          group.name,
+          group.lockSeconds,
+          request.currentUser?.id ?? "manual",
+          currentUser?.name ?? "Administrador",
+          snapshot
+        );
       }
 
       await app.prisma.lockGroupEvent.create({
@@ -392,9 +413,12 @@ export async function groupRoutes(app: FastifyInstance) {
       const unlockedUsers: string[] = [];
       const failedUsers: string[] = [];
 
-      // Unlock each member via SB API (set all locks to false)
-      for (const member of group.members) {
-        try {
+      // Gerar UM auth_code e desbloquear todos em paralelo
+      const { tokenManager: tm } = await import("../services/tokenManager");
+      const unlockCode = await tm.generateTotpCode(app.prisma);
+
+      const unlockResults = await Promise.allSettled(
+        group.members.map(async (member) => {
           const user = await getUser(app.prisma, member.ngxUserId);
           await updateUserLocks(app.prisma, member.ngxUserId, {
             ...user.locks,
@@ -404,14 +428,21 @@ export async function groupRoutes(app: FastifyInstance) {
             deposit: false,
             withdraw: false,
             esport_bet: false,
-          });
-          unlockedUsers.push(member.ngxUserId);
-          request.log.info(`[GroupLock] User ${member.ngxUserId} unlocked`);
-        } catch (err: any) {
-          failedUsers.push(member.ngxUserId);
-          request.log.error(`[GroupLock] Failed to unlock ${member.ngxUserId}: ${err.message}`);
+          }, unlockCode);
+          return member.ngxUserId;
+        })
+      );
+
+      unlockResults.forEach((result, i) => {
+        if (result.status === "fulfilled") {
+          unlockedUsers.push(result.value);
+          request.log.info(`[GroupLock] User ${result.value} unlocked`);
+        } else {
+          const userId = group.members[i]!.ngxUserId;
+          failedUsers.push(userId);
+          request.log.error(`[GroupLock] Failed to unlock ${userId}: ${result.reason?.message}`);
         }
-      }
+      });
 
       await app.prisma.lockGroupEvent.create({
         data: {
