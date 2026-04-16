@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Lock, Unlock, Settings, Users, Timer, Loader2, ShieldOff, ShieldAlert, ShieldCheck, Clock } from "lucide-react";
+import { Plus, Lock, Unlock, Settings, Users, Timer, Loader2, ShieldOff, ShieldAlert, ShieldCheck, Clock, Trash2, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
 interface LockGroupEvent {
@@ -28,6 +28,8 @@ interface LockGroup {
 export default function GroupsPage() {
   const [groups, setGroups] = useState<LockGroup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<LockGroup | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchGroups = useCallback(async () => {
     setLoading(true);
@@ -53,6 +55,18 @@ export default function GroupsPage() {
   const unlockGroup = async (id: string) => {
     await api.fetch(`/groups/${id}/unlock`, { method: "POST" });
     fetchGroups();
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.fetch(`/groups/${deleteTarget.id}`, { method: "DELETE" });
+      setDeleteTarget(null);
+      fetchGroups();
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -210,6 +224,15 @@ export default function GroupsPage() {
                           Bloquear
                         </Button>
                       )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => setDeleteTarget(group)}
+                        title="Excluir grupo"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
@@ -218,6 +241,52 @@ export default function GroupsPage() {
           })
         )}
       </div>
+
+      {/* Modal de confirmação de exclusão */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => !deleting && setDeleteTarget(null)} />
+          <div className="relative w-full max-w-md mx-4 rounded-2xl border border-border bg-card shadow-2xl p-6 space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/10">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Excluir grupo</h2>
+                <p className="text-sm text-muted-foreground">Esta ação não pode ser desfeita</p>
+              </div>
+            </div>
+            <p className="text-sm text-foreground">
+              Tem certeza que deseja excluir o grupo{" "}
+              <span className="font-semibold">"{deleteTarget.name}"</span>?
+              Todos os membros e histórico serão removidos permanentemente.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                className="rounded-xl"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                className="rounded-xl gap-2"
+                onClick={confirmDelete}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+                {deleting ? "Excluindo..." : "Excluir grupo"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -98,8 +98,33 @@ export async function getUser(prisma: PrismaClient, userId: string) {
   return data as { id: string; locks: UserLocks; [key: string]: any };
 }
 
-export async function updateUserLocks(prisma: PrismaClient, userId: string, locks: UserLocks) {
-  await sbRequest(prisma, (sb) => sb.put(`/user/${userId}/edit-client`, { locks }));
+/**
+ * Atualiza os locks de um usuário na NGX.
+ *
+ * @param auth_code - Código TOTP pré-gerado pelo chamador. Se omitido, gera um novo.
+ *   Em operações de grupo (múltiplos usuários), gere o código UMA VEZ antes do loop
+ *   e passe-o aqui para evitar problemas de replay protection do TOTP e reduzir latência.
+ */
+export async function updateUserLocks(
+  prisma: PrismaClient,
+  userId: string,
+  locks: UserLocks,
+  auth_code?: string
+) {
+  const code = auth_code ?? await tokenManager.generateTotpCode(prisma);
+  try {
+    await sbRequest(prisma, (sb) =>
+      sb.put(`/user/${userId}/edit-client`, { locks, auth_code: code })
+    );
+  } catch (err: any) {
+    const responseData = err.response?.data;
+    console.error(
+      `[sbClient] updateUserLocks failed for ${userId}:`,
+      `status=${err.response?.status}`,
+      `body=${JSON.stringify(responseData)}`
+    );
+    throw err;
+  }
 }
 
 export const FULL_LOCK: UserLocks = {

@@ -104,6 +104,11 @@ async function start() {
   app.decorate("groupLockEngine", groupLockEngine);
   app.decorate("alertEngine", alertEngine);
 
+  // Reconciliar estado stale de grupos bloqueados antes de reiniciar
+  groupLockEngine.reconcileStaleState().catch((err) =>
+    console.error("[GroupLock] Erro na reconciliação ao iniciar:", err)
+  );
+
   // ── Dashboard/API routes ─────────────────────────────────────────────
   await app.register(authRoutes, { prefix: "/auth" });
   await app.register(userRoutes, { prefix: "/users" });

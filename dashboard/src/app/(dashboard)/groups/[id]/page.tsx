@@ -13,7 +13,7 @@ import {
   Trash2, UserPlus, Lock, Unlock, Timer, AlertCircle, Loader2,
   Users, CheckCircle, XCircle, History, ShieldAlert, ShieldCheck,
   Bell, MessageSquare, Save, X, Settings, BarChart3,
-  ArrowLeft, Clock,
+  ArrowLeft, Clock, AlertTriangle,
 } from "lucide-react";
 import {
   BarChart,
@@ -158,6 +158,10 @@ export default function GroupDetailPage() {
   const [showLockConfirm, setShowLockConfirm] = useState(false);
   const [locking, setLocking] = useState(false);
   const [lockResult, setLockResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Delete confirm modal
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingGroup, setDeletingGroup] = useState(false);
 
   // Add member
   const [newUserId, setNewUserId] = useState("");
@@ -345,6 +349,16 @@ export default function GroupDetailPage() {
     }
   };
 
+  const handleDeleteGroup = async () => {
+    setDeletingGroup(true);
+    try {
+      await api.fetch(`/groups/${groupId}`, { method: "DELETE" });
+      router.push("/groups");
+    } finally {
+      setDeletingGroup(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center gap-3 py-24">
@@ -444,6 +458,15 @@ export default function GroupDetailPage() {
           >
             <Unlock className="h-3.5 w-3.5" />
             Desbloquear
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="rounded-xl gap-1.5 text-xs h-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            onClick={() => setShowDeleteConfirm(true)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+            Excluir
           </Button>
         </div>
       </div>
@@ -1231,6 +1254,55 @@ export default function GroupDetailPage() {
           </div>
         )}
       </Modal>
+
+      {/* ── Modal: Confirmar Exclusão ── */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => !deletingGroup && setShowDeleteConfirm(false)}
+          />
+          <div className="relative w-full max-w-md mx-4 rounded-2xl border border-border bg-card shadow-2xl p-6 space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/10">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Excluir grupo</h2>
+                <p className="text-sm text-muted-foreground">Esta ação não pode ser desfeita</p>
+              </div>
+            </div>
+            <p className="text-sm text-foreground">
+              Tem certeza que deseja excluir o grupo{" "}
+              <span className="font-semibold">"{group.name}"</span>?
+              Todos os membros e histórico serão removidos permanentemente.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                className="rounded-xl"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deletingGroup}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                className="rounded-xl gap-2"
+                onClick={handleDeleteGroup}
+                disabled={deletingGroup}
+              >
+                {deletingGroup ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+                {deletingGroup ? "Excluindo..." : "Excluir grupo"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

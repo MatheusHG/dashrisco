@@ -2,6 +2,17 @@ import { PrismaClient, Prisma } from "@prisma/client";
 import axios from "axios";
 import { eventBus } from "./eventBus";
 import { getUser, updateUserLocks, UserLocks, FULL_LOCK } from "./sbClient";
+import { tokenManager } from "./tokenManager";
+
+// Locks zerados — usado como fallback no desbloqueio quando snapshot está vazio
+const UNLOCK_ALL: UserLocks = {
+  bet: false,
+  bonus_bet: false,
+  casino_bet: false,
+  deposit: false,
+  withdraw: false,
+  esport_bet: false,
+};
 
 interface TriggerFilter {
   field: string;
@@ -204,25 +215,41 @@ export class GroupLockEngine {
     const lockedUsers: string[] = [];
     const failedUsers: string[] = [];
 
-    // 1) Capturar snapshot e aplicar lock em cada membro
-    for (const member of group.members) {
-      try {
+    // 1) Gerar UM auth_code TOTP para todos os membros.
+    //    Isso evita problemas de replay protection (mesmo código rejeitado na 2ª chamada)
+    //    e reduz latência ao processar em paralelo.
+    const auth_code = await tokenManager.generateTotpCode(this.prisma);
+
+    // 2) Capturar snapshot e aplicar lock em todos os membros em paralelo
+    const lockResults = await Promise.allSettled(
+      group.members.map(async (member) => {
         const user = await getUser(this.prisma, member.ngxUserId);
-        snapshot.set(member.ngxUserId, { ...user.locks });
-        await updateUserLocks(this.prisma, member.ngxUserId, {
-          ...user.locks,
-          ...FULL_LOCK,
-        });
-        lockedUsers.push(member.ngxUserId);
-      } catch (err: any) {
-        failedUsers.push(member.ngxUserId);
-        console.error(
-          `[GroupLock] Erro ao bloquear ${member.ngxUserId}: ${err.message}`
-        );
+        await updateUserLocks(this.prisma, member.ngxUserId, { ...user.locks, ...FULL_LOCK }, auth_code);
+        return { userId: member.ngxUserId, originalLocks: { ...user.locks } };
+      })
+    );
+
+    lockResults.forEach((result, i) => {
+      if (result.status === "fulfilled") {
+        snapshot.set(result.value.userId, result.value.originalLocks);
+        lockedUsers.push(result.value.userId);
+      } else {
+        const userId = group.members[i]!.ngxUserId;
+        failedUsers.push(userId);
+        console.error(`[GroupLock] Erro ao bloquear ${userId}: ${result.reason?.message}`);
       }
+    });
+
+    // 3) Abortar se nenhum membro foi bloqueado (evita sessão e unlock espúrios)
+    if (lockedUsers.length === 0) {
+      console.warn(
+        `[GroupLock] Nenhum usuario bloqueado em "${group.name}" — sessao abortada` +
+        (failedUsers.length > 0 ? ` (falhas: ${failedUsers.join(", ")})` : "")
+      );
+      return;
     }
 
-    // 2) Agendar desbloqueio automático
+    // 3) Agendar desbloqueio automático
     const timer = setTimeout(
       () => this.unlockGroup(group.id),
       group.lockSeconds * 1000
@@ -311,18 +338,41 @@ export class GroupLockEngine {
     const restoredUsers: string[] = [];
     const failedUsers: string[] = [];
 
-    // Restaurar locks originais
-    for (const [userId, originalLocks] of session.snapshot) {
-      try {
-        await updateUserLocks(this.prisma, userId, originalLocks);
-        restoredUsers.push(userId);
-      } catch (err: any) {
+    // Restaurar locks originais em paralelo com um único auth_code TOTP.
+    // Se snapshot estiver vazio (ex: após restart do servidor), busca membros do DB
+    // e usa UNLOCK_ALL como fallback para garantir que os usuários sejam desbloqueados.
+    let unlockEntries: Array<[string, UserLocks]>;
+    if (session.snapshot.size > 0) {
+      unlockEntries = Array.from(session.snapshot.entries());
+    } else {
+      const members = await this.prisma.lockGroupMember.findMany({
+        where: { groupId },
+        select: { ngxUserId: true },
+      });
+      unlockEntries = members.map((m) => [m.ngxUserId, UNLOCK_ALL]);
+      console.warn(`[GroupLock] Snapshot vazio para grupo ${groupId} — usando UNLOCK_ALL para ${members.length} membros`);
+    }
+
+    const auth_code = await tokenManager.generateTotpCode(this.prisma);
+
+    const unlockResults = await Promise.allSettled(
+      unlockEntries.map(async ([userId, originalLocks]) => {
+        await updateUserLocks(this.prisma, userId, originalLocks, auth_code);
+        return userId;
+      })
+    );
+
+    unlockResults.forEach((result, i) => {
+      if (result.status === "fulfilled") {
+        restoredUsers.push(result.value);
+      } else {
+        const userId = unlockEntries[i]![0];
         failedUsers.push(userId);
         console.error(
-          `[GroupLock] Erro ao desbloquear ${userId}: ${err.message}`
+          `[GroupLock] Erro ao desbloquear ${userId}: ${result.reason?.message}`
         );
       }
-    }
+    });
 
     // Registrar evento
     const elapsedMs = Date.now() - session.lockedAt.getTime();
@@ -398,6 +448,38 @@ export class GroupLockEngine {
   }
 
   /**
+   * Registra uma sessão de bloqueio iniciada externamente (ex: rota de lock manual).
+   * Assume que os membros já foram bloqueados pelo chamador.
+   * Popula activeSessions e agenda o desbloqueio automático.
+   */
+  startSession(
+    groupId: string,
+    groupName: string,
+    lockSeconds: number,
+    triggerUserId: string,
+    triggerUserName: string,
+    snapshot: Map<string, UserLocks>
+  ): void {
+    if (this.activeSessions.has(groupId)) return; // já há sessão ativa
+
+    const timer = setTimeout(
+      () => this.unlockGroup(groupId),
+      lockSeconds * 1000
+    );
+
+    this.activeSessions.set(groupId, {
+      groupId,
+      groupName,
+      triggerUserId,
+      triggerUserName,
+      snapshot,
+      timer,
+      lockedAt: new Date(),
+      unlockAt: new Date(Date.now() + lockSeconds * 1000),
+    });
+  }
+
+  /**
    * Verifica se um grupo está com sessão ativa de bloqueio.
    */
   isLocked(groupId: string): boolean {
@@ -406,5 +488,74 @@ export class GroupLockEngine {
 
   getSession(groupId: string): ActiveSession | undefined {
     return this.activeSessions.get(groupId);
+  }
+
+  /**
+   * Reconcilia estado stale ao iniciar o servidor.
+   *
+   * Se o servidor reiniciou enquanto um grupo estava "locked", o timer
+   * in-memory foi perdido mas o último evento no DB ainda diz "locked".
+   * Isso faz a tela mostrar "Bloqueado" indefinidamente.
+   *
+   * Para cada grupo cujo último evento é "locked" e cujo tempo de
+   * bloqueio já expirou (createdAt + lockSeconds < agora), cria um
+   * evento "unlocked" de reconciliação para corrigir o estado.
+   *
+   * Se o bloqueio ainda não expirou, re-registra um timer para o tempo
+   * restante (sem snapshot, o desbloqueio só cria o evento no DB).
+   */
+  async reconcileStaleState(): Promise<void> {
+    const groups = await this.prisma.lockGroup.findMany({
+      include: {
+        events: {
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+      },
+    });
+
+    const now = Date.now();
+
+    for (const group of groups) {
+      const lastEvent = group.events[0];
+      if (!lastEvent || lastEvent.action !== "locked") continue;
+
+      const lockedAt = lastEvent.createdAt.getTime();
+      const unlockAt = lockedAt + group.lockSeconds * 1000;
+
+      if (now >= unlockAt) {
+        // Bloqueio já expirou — reconciliar no DB
+        await this.prisma.lockGroupEvent.create({
+          data: {
+            groupId: group.id,
+            action: "unlocked",
+            userName: "Sistema (reconciliação ao reiniciar)",
+            reason: `Bloqueio de ${group.lockSeconds}s expirou enquanto o servidor estava offline.`,
+          },
+        });
+        console.log(`[GroupLock] Reconciled expired lock for group "${group.name}"`);
+      } else {
+        // Bloqueio ainda ativo — re-registrar timer para o tempo restante
+        const remainingMs = unlockAt - now;
+        const timer = setTimeout(
+          () => this.unlockGroup(group.id),
+          remainingMs
+        );
+        this.activeSessions.set(group.id, {
+          groupId: group.id,
+          groupName: group.name,
+          triggerUserId: "unknown",
+          triggerUserName: "Sistema (restart)",
+          snapshot: new Map(), // sem snapshot após restart
+          timer,
+          lockedAt: new Date(lockedAt),
+          unlockAt: new Date(unlockAt),
+        });
+        console.log(
+          `[GroupLock] Re-registered active lock for group "${group.name}", ` +
+          `unlocks in ${Math.round(remainingMs / 1000)}s`
+        );
+      }
+    }
   }
 }

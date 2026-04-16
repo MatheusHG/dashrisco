@@ -70,6 +70,19 @@ class TokenManager {
     this._failureCount = 0;
   }
 
+  /**
+   * Gera um código TOTP válido no momento atual usando o segredo armazenado.
+   * Usado em chamadas de API que exigem auth_code além do Bearer token.
+   */
+  async generateTotpCode(prisma: PrismaClient): Promise<string> {
+    const row = await prisma.appConfig.findUnique({ where: { key: "SB_TOTP_SECRET_ENC" } });
+    if (!row?.value) {
+      throw new Error("SB_TOTP_SECRET_ENC não configurado. Execute setup-sb-credentials.");
+    }
+    const totpSecret = decrypt(row.value);
+    return totpGenerate({ secret: totpSecret });
+  }
+
   private async _performLogin(prisma: PrismaClient): Promise<string> {
     // 1. Buscar credenciais criptografadas no banco
     const rows = await prisma.appConfig.findMany({
