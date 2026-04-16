@@ -7,9 +7,9 @@ tags: [tarefas, concluido]
 Registro cronológico. Item mais recente no topo.
 
 ## 2026-04-15 — T-004 Grupos de Bloqueio (MOD-09)
-- Detalhes: (1) lockGroup() aborta se lockedUsers.length === 0, evitando sessão fantasma e evento unlocked espúrio. (2) reconcileStaleState() chamado no boot: grupos presos em "locked" no DB após restart recebem evento unlocked se o tempo expirou, ou re-registram timer se ainda ativos. tokenManager já resolve o 2FA automaticamente via sbRequest retry.
+- Detalhes: TOTP exigido por chamada NGX (auth_code no body). tokenManager expõe generateTotpCode(). Lock/unlock paralelo via Promise.allSettled com 1 código por operação. Fallback UNLOCK_ALL para snapshot vazio pós-restart. startSession() registra sessão manual no engine para countdown/auto-unlock. reconcileStaleState() no boot corrige estado stale. Excluir grupo com modal de confirmação e log de auditoria.
 - Branch: work/2026-04-15
-- Commit: 5ca30c7
+- Commits: 5ca30c7, 37730e5, bb90d35 — PR #4
 
 ## 2026-04-15 — T-008 Enter perdendo mensagem na observação (MOD-04)
 - Detalhes: Enter (sem Shift) na textarea de observação do passo na análise agora chama confirmStep(). Shift+Enter adiciona nova linha.
