@@ -20,6 +20,8 @@ Fila priorizada. Mover para [[Em Andamento]] ao iniciar.
 - [x] **T-007** Checklist em formato texto — [[03 - Modificações/Desejadas#MOD-12]] ✅ 2026-04-15
 - [x] **T-008** Enter perdendo mensagem — [[03 - Modificações/Desejadas#MOD-04]] ✅ 2026-04-15
 
+- [x] **T-013** Filtro por Central de Alerta no Painel de Tasks — [[03 - Modificações/Desejadas#MOD-13]] ✅ 2026-04-17
+
 ## 🟢 Baixa prioridade / Features grandes
 
 - [ ] **T-009** Área de Reports — [[03 - Modificações/Desejadas#MOD-07]]

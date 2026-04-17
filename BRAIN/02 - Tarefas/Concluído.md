@@ -6,6 +6,21 @@ tags: [tarefas, concluido]
 
 Registro cronológico. Item mais recente no topo.
 
+## 2026-04-17 — T-013 Filtro por Central de Alerta no Painel de Tasks (MOD-13)
+- Detalhes: Select "Central de Alerta" adicionado na barra de filtros do Painel de Tasks. API `/panel/tasks` passou a aceitar `alertConfigId` como query param. Frontend busca `/reports/alert-configs` para popular o dropdown.
+- Branch: work/2026-04-15
+- Commit: ac0833e
+
+## 2026-04-17 — Fix endDate fuso BRT (MOD-06 complemento)
+- Detalhes: `panel/alerts` nunca tinha recebido a correção de endDate (usava `new Date()` = meia-noite UTC). `panel/tasks` e todos os endpoints de `reports.ts` usavam `T23:59:59.999Z` = 21h BRT, excluindo tasks criadas após 21h. Corrigido para `T23:59:59.999-03:00` (fim do dia BRT real).
+- Branch: work/2026-04-15
+- Commit: 4022494
+
+## 2026-04-17 — Fix link NGX user_id em alertas e tasks (MOD-02 extensão)
+- Detalhes: Campo `user_id` nos dados do webhook agora é link clicável em `panel/alerts/page.tsx` (bloco expandido) e `panel/tasks/page.tsx` (seção "Dados do webhook" no modal).
+- Branch: work/2026-04-15
+- Commit: cad8fef
+
 ## 2026-04-15 — T-004 Grupos de Bloqueio (MOD-09)
 - Detalhes: TOTP exigido por chamada NGX (auth_code no body). tokenManager expõe generateTotpCode(). Lock/unlock paralelo via Promise.allSettled com 1 código por operação. Fallback UNLOCK_ALL para snapshot vazio pós-restart. startSession() registra sessão manual no engine para countdown/auto-unlock. reconcileStaleState() no boot corrige estado stale. Excluir grupo com modal de confirmação e log de auditoria.
 - Branch: work/2026-04-15

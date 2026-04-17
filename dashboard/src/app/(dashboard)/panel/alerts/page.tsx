@@ -268,7 +268,19 @@ export default function PanelAlertsPage() {
                         .map(([key, value]) => (
                           <div key={key}>
                             <p className="text-[10px] text-muted-foreground">{getFieldLabel(key)}</p>
-                            <p className="text-xs font-medium text-foreground truncate">{formatValue(key, value)}</p>
+                            {key === "user_id" ? (
+                              <a
+                                href={`https://dashboard.marjosports.com.br/back-office/online-client/search?query=ID&field=${String(value)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs font-medium text-blue-500 hover:underline truncate block"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {String(value)}
+                              </a>
+                            ) : (
+                              <p className="text-xs font-medium text-foreground truncate">{formatValue(key, value)}</p>
+                            )}
                           </div>
                         ))}
                     </div>

@@ -166,7 +166,7 @@ export async function panelRoutes(app: FastifyInstance) {
           );
         if (query.endDate)
           (where.createdAt as Record<string, unknown>).lte = new Date(
-            query.endDate
+            query.endDate + "T23:59:59.999-03:00"
           );
       }
 
@@ -206,6 +206,7 @@ export async function panelRoutes(app: FastifyInstance) {
         completedBy?: string;
         assignedTo?: string;
         webhookType?: string;
+        alertConfigId?: string;
         startDate?: string;
         endDate?: string;
       };
@@ -218,6 +219,7 @@ export async function panelRoutes(app: FastifyInstance) {
       if (query.status) where.status = query.status;
       if (query.completedBy) where.completedBy = query.completedBy;
       if (query.assignedTo) where.assignedTo = query.assignedTo;
+      if (query.alertConfigId) where.alertConfigId = query.alertConfigId;
       if (query.webhookType) {
         const configsOfType = await app.prisma.alertConfig.findMany({
           where: { webhookType: query.webhookType as any },
@@ -230,7 +232,7 @@ export async function panelRoutes(app: FastifyInstance) {
         if (query.startDate)
           (where.createdAt as Record<string, unknown>).gte = new Date(query.startDate);
         if (query.endDate)
-          (where.createdAt as Record<string, unknown>).lte = new Date(query.endDate + "T23:59:59.999Z");
+          (where.createdAt as Record<string, unknown>).lte = new Date(query.endDate + "T23:59:59.999-03:00");
       }
 
       const [tasks, total, users] = await Promise.all([

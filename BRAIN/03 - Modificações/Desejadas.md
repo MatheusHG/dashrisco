@@ -99,6 +99,18 @@ Sugestões diretas do cliente (PDF na raiz do projeto). Cada item é um candidat
   - NÃO (checklist)
 - **Tipo:** Melhoria
 
+## MOD-13 — Filtro por Central de Alerta no Painel de Tasks
+- [x] Adicionar `<select>` "Central de Alerta" na barra de filtros do Painel de Tasks, permitindo filtrar tasks pela AlertConfig que gerou o alerta.
+- **Status:** ✅ Implementado em 2026-04-17 — branch work/2026-04-15
+- **Tipo:** Melhoria UX
+- **Prioridade:** Média
+- **Solicitado em:** 2026-04-17
+- **Tela:** Painel de Tasks → barra de filtros (ao lado de "Responsavel")
+- **Implementação:**
+  - API: adicionar `alertConfigId` ao query type + `where` clause em `GET /panel/tasks` (`api/src/routes/panel.ts`)
+  - Dashboard: estado `alertConfigId`, fetch `/reports/alert-configs`, `<select>` no Card de filtros, incluir em `hasFilters` e `clearFilters` (`panel/tasks/page.tsx`)
+- **Endpoint reutilizado:** `/reports/alert-configs` (já usado em `panel/alerts/page.tsx`)
+
 ---
 
 ## Índice rápido
@@ -117,5 +129,6 @@ Sugestões diretas do cliente (PDF na raiz do projeto). Cada item é um candidat
 | MOD-10 | Condição "Data da Aposta" sem opções | Bug | ✅ |
 | MOD-11 | Condição Cooldown | Feature | ⏳ |
 | MOD-12 | Checklist em formato texto | Melhoria | ✅ |
+| MOD-13 | Filtro por Central de Alerta (Tasks) | Melhoria | ✅ |
 
 Legenda: ⏳ pendente • 🔧 em andamento • ✅ concluído • 🚫 cancelado

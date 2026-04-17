@@ -77,6 +77,7 @@ interface PanelTaskItem { id: string; title: string; description: string | null;
 interface TaskDetail extends PanelTaskItem { comments: TaskComment[]; attachments: TaskAttachment[]; assignedUser: { id: string; name: string } | null; completedByUser: { id: string; name: string } | null; allUsers: { id: string; name: string }[]; }
 interface HistoryEntry { id: string; action: string; details: Record<string, unknown> | null; createdAt: string; user: { id: string; name: string } | null; }
 interface UserOption { id: string; name: string; }
+interface AlertConfigOption { id: string; name: string; }
 
 // ═══════════════════════════════════════
 // UTILS
@@ -534,7 +535,19 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
                     {dataEntries.map(([key, value]) => (
                       <div key={key}>
                         <p className="text-[10px] text-muted-foreground truncate">{getFieldLabel(key)}</p>
-                        <p className="text-xs font-medium truncate text-foreground">{formatValue(key, value)}</p>
+                        {key === "user_id" ? (
+                          <a
+                            href={`https://dashboard.marjosports.com.br/back-office/online-client/search?query=ID&field=${String(value)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-medium text-blue-500 hover:underline truncate block"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {String(value)}
+                          </a>
+                        ) : (
+                          <p className="text-xs font-medium truncate text-foreground">{formatValue(key, value)}</p>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -977,6 +990,7 @@ export default function PanelTasksPage() {
 
   const [tasks, setTasks] = useState<PanelTaskItem[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
+  const [alertConfigs, setAlertConfigs] = useState<AlertConfigOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
@@ -985,8 +999,9 @@ export default function PanelTasksPage() {
   const [endDate, setEndDate] = useState("");
   const [assignedTo, setAssignedTo] = useState<string>("");
   const [webhookType, setWebhookType] = useState("");
+  const [alertConfigId, setAlertConfigId] = useState("");
   const [showFilters, setShowFilters] = useState(true);
-  const hasFilters = startDate || endDate || assignedTo || webhookType;
+  const hasFilters = startDate || endDate || assignedTo || webhookType || alertConfigId;
 
   const fetchTasks = useCallback(async () => {
     setLoading(true);
@@ -996,14 +1011,19 @@ export default function PanelTasksPage() {
       if (endDate) params.set("endDate", endDate);
       if (assignedTo) params.set("assignedTo", assignedTo);
       if (webhookType) params.set("webhookType", webhookType);
+      if (alertConfigId) params.set("alertConfigId", alertConfigId);
       const data = await api.fetch<{ tasks: PanelTaskItem[]; users: UserOption[] }>(`/panel/tasks?${params}`);
       setTasks(data.tasks);
       setUsers(data.users);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
-  }, [startDate, endDate, assignedTo, webhookType]);
+  }, [startDate, endDate, assignedTo, webhookType, alertConfigId]);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
+
+  useEffect(() => {
+    api.fetch<AlertConfigOption[]>("/reports/alert-configs").then(setAlertConfigs).catch(() => {});
+  }, []);
 
   const updateTaskStatus = async (id: string, status: string) => {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status } : t)));
@@ -1065,7 +1085,14 @@ export default function PanelTasksPage() {
                 {users.map((u) => (<option key={u.id} value={u.id}>{u.name}</option>))}
               </select>
             </div>
-            {hasFilters && <Button variant="ghost" size="sm" onClick={() => { setStartDate(""); setEndDate(""); setAssignedTo(""); setWebhookType(""); }}><X className="h-4 w-4" /> Limpar</Button>}
+            <div className="space-y-1">
+              <Label className="text-xs">Central de Alerta</Label>
+              <select className="flex h-8 rounded-md border border-input bg-transparent px-3 text-sm text-foreground" value={alertConfigId} onChange={(e) => setAlertConfigId(e.target.value)}>
+                <option value="">Todas</option>
+                {alertConfigs.map((c) => (<option key={c.id} value={c.id}>{c.name}</option>))}
+              </select>
+            </div>
+            {hasFilters && <Button variant="ghost" size="sm" onClick={() => { setStartDate(""); setEndDate(""); setAssignedTo(""); setWebhookType(""); setAlertConfigId(""); }}><X className="h-4 w-4" /> Limpar</Button>}
           </CardContent>
         </Card>
       )}
