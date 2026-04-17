@@ -18,6 +18,18 @@ Formato sugerido por item:
 
 ---
 
+## Fix filtro de data Painel de Tasks (createdAt OR completedAt) — 2026-04-17
+- PR/commit: 911bae9 (branch work/2026-04-15)
+- Ambiente: dev (aguarda merge para prod)
+- Testado por: time operacional
+- Notas: Filtro de datas no kanban usava apenas `createdAt`, excluindo tasks concluídas no período mas criadas antes. Corrigido para `(createdAt IN range) OR (completedAt IN range)` — tasks concluídas no período aparecem mesmo que criadas antes.
+
+## Página de edição do grupo de bloqueio — 2026-04-17
+- PR/commit: e2347f5 (branch work/2026-04-15)
+- Ambiente: dev (aguarda merge para prod)
+- Testado por: Eytor
+- Notas: Nova rota `/groups/[id]/edit` com wizard de 4 passos (Info, Condições, Notificações, Revisão) pré-populado do GET. Botão de lápis (Pencil) na lista de grupos. Permite editar nome, lockSeconds, timeSlots, triggerTypes, triggerFilters, notifyPanel/Chat.
+
 ## MOD-11 — Cooldown nas condições do webhook — 2026-04-17
 - PR/commit: branch work/2026-04-15
 - Ambiente: dev (aguarda merge para prod)

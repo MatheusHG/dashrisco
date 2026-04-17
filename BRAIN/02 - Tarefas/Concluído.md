@@ -6,6 +6,16 @@ tags: [tarefas, concluido]
 
 Registro cronológico. Item mais recente no topo.
 
+## 2026-04-17 — Fix filtro de data no Painel de Tasks (createdAt OR completedAt)
+- Detalhes: Filtro de datas no kanban usava apenas `createdAt`, excluindo tasks concluídas no período mas criadas antes dele. Corrigido para `WHERE (createdAt IN range) OR (completedAt IN range)`.
+- Branch: work/2026-04-15
+- Commit: 911bae9
+
+## 2026-04-17 — Página de edição do grupo de bloqueio
+- Detalhes: Nova rota `/groups/[id]/edit` com wizard de 4 passos pré-populado via GET /groups/:id. Permite editar nome, lockSeconds, timeSlots, triggerTypes/Filters e notificações. Botão de lápis na lista de grupos ao lado de excluir.
+- Branch: work/2026-04-15
+- Commit: e2347f5
+
 ## 2026-04-17 — T-011 Cooldown nas condições do webhook (MOD-11)
 - Detalhes: Campo `cooldownMinutes` no AlertConfig. Engine verifica no PanelAlert se já existe disparo recente para o mesmo alertConfig + user_id dentro do cooldown. UI no wizard (Step 6 Filtros) com input de minutos. Funciona em create e edit.
 - Branch: work/2026-04-15
