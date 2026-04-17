@@ -12,7 +12,8 @@
     "db:seed": "ts-node src/prisma/seed.ts",
     "db:seed:prod": "dotenv -e .env.production -- ts-node src/prisma/seed.ts",
     "db:generate": "prisma generate",
-    "deploy": "dotenv -e .env -- prisma db push && npm run build && npm run start"
+    "deploy": "dotenv -e .env -- prisma db push && npm run build && npm run start",
+    "deploy:prod": "npm run db:push:prod && npm run db:generate && npm run build && npm run start"
   },
   "prisma": {
     "schema": "src/prisma/schema.prisma"
