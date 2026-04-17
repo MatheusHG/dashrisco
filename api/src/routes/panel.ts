@@ -206,6 +206,7 @@ export async function panelRoutes(app: FastifyInstance) {
         completedBy?: string;
         assignedTo?: string;
         webhookType?: string;
+        alertConfigId?: string;
         startDate?: string;
         endDate?: string;
       };
@@ -218,6 +219,7 @@ export async function panelRoutes(app: FastifyInstance) {
       if (query.status) where.status = query.status;
       if (query.completedBy) where.completedBy = query.completedBy;
       if (query.assignedTo) where.assignedTo = query.assignedTo;
+      if (query.alertConfigId) where.alertConfigId = query.alertConfigId;
       if (query.webhookType) {
         const configsOfType = await app.prisma.alertConfig.findMany({
           where: { webhookType: query.webhookType as any },
