@@ -1,7 +1,12 @@
 import { FastifyInstance } from "fastify";
 import { authorize } from "../middlewares/auth";
 
-/** Converte "2026-03-25" em fim do dia no fuso BRT (UTC-3): 23:59:59.999 -03:00 = 02:59:59.999Z do dia seguinte */
+/** Converte "2026-03-25" em início do dia BRT (UTC-3): 00:00:00 -03:00 = 03:00:00Z */
+function startOfDay(dateStr: string): Date {
+  return new Date(dateStr + "T00:00:00.000-03:00");
+}
+
+/** Converte "2026-03-25" em fim do dia BRT (UTC-3): 23:59:59.999 -03:00 = 02:59:59.999Z do dia seguinte */
 function endOfDay(dateStr: string): Date {
   return new Date(dateStr + "T23:59:59.999-03:00");
 }
@@ -28,7 +33,7 @@ export async function reportRoutes(app: FastifyInstance) {
       if (query.startDate || query.endDate) {
         where.completedAt = {};
         if (query.startDate)
-          (where.completedAt as Record<string, unknown>).gte = new Date(query.startDate);
+          (where.completedAt as Record<string, unknown>).gte = startOfDay(query.startDate);
         if (query.endDate)
           (where.completedAt as Record<string, unknown>).lte = endOfDay(query.endDate);
       }
@@ -115,7 +120,7 @@ export async function reportRoutes(app: FastifyInstance) {
       if (query.startDate || query.endDate) {
         where.createdAt = {};
         if (query.startDate)
-          (where.createdAt as Record<string, unknown>).gte = new Date(query.startDate);
+          (where.createdAt as Record<string, unknown>).gte = startOfDay(query.startDate);
         if (query.endDate)
           (where.createdAt as Record<string, unknown>).lte = endOfDay(query.endDate);
       }
@@ -194,7 +199,7 @@ export async function reportRoutes(app: FastifyInstance) {
       if (query.startDate || query.endDate) {
         alertWhere.createdAt = {};
         if (query.startDate)
-          (alertWhere.createdAt as Record<string, unknown>).gte = new Date(query.startDate);
+          (alertWhere.createdAt as Record<string, unknown>).gte = startOfDay(query.startDate);
         if (query.endDate)
           (alertWhere.createdAt as Record<string, unknown>).lte = endOfDay(query.endDate);
       }
@@ -216,7 +221,7 @@ export async function reportRoutes(app: FastifyInstance) {
       if (query.startDate || query.endDate) {
         taskWhere.completedAt = {};
         if (query.startDate)
-          (taskWhere.completedAt as Record<string, unknown>).gte = new Date(query.startDate);
+          (taskWhere.completedAt as Record<string, unknown>).gte = startOfDay(query.startDate);
         if (query.endDate)
           (taskWhere.completedAt as Record<string, unknown>).lte = endOfDay(query.endDate);
       }
@@ -295,7 +300,7 @@ export async function reportRoutes(app: FastifyInstance) {
       if (query.startDate || query.endDate) {
         where.createdAt = {};
         if (query.startDate)
-          (where.createdAt as Record<string, unknown>).gte = new Date(query.startDate);
+          (where.createdAt as Record<string, unknown>).gte = startOfDay(query.startDate);
         if (query.endDate)
           (where.createdAt as Record<string, unknown>).lte = endOfDay(query.endDate);
       }
@@ -407,7 +412,7 @@ export async function reportRoutes(app: FastifyInstance) {
       if (query.startDate || query.endDate) {
         where.createdAt = {};
         if (query.startDate)
-          (where.createdAt as Record<string, unknown>).gte = new Date(query.startDate);
+          (where.createdAt as Record<string, unknown>).gte = startOfDay(query.startDate);
         if (query.endDate)
           (where.createdAt as Record<string, unknown>).lte = endOfDay(query.endDate);
       }
@@ -440,7 +445,7 @@ export async function reportRoutes(app: FastifyInstance) {
       };
 
       const now = new Date();
-      const start = query.startDate ? new Date(query.startDate) : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const start = query.startDate ? startOfDay(query.startDate) : new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       const end = query.endDate ? endOfDay(query.endDate) : now;
       const durationMs = end.getTime() - start.getTime();
       const prevStart = new Date(start.getTime() - durationMs);
@@ -511,7 +516,7 @@ export async function reportRoutes(app: FastifyInstance) {
       if (query.startDate || query.endDate) {
         where.createdAt = {};
         if (query.startDate)
-          (where.createdAt as Record<string, unknown>).gte = new Date(query.startDate);
+          (where.createdAt as Record<string, unknown>).gte = startOfDay(query.startDate);
         if (query.endDate)
           (where.createdAt as Record<string, unknown>).lte = endOfDay(query.endDate);
       }
@@ -558,7 +563,7 @@ export async function reportRoutes(app: FastifyInstance) {
       if (query.startDate || query.endDate) {
         where.createdAt = {};
         if (query.startDate)
-          (where.createdAt as Record<string, unknown>).gte = new Date(query.startDate);
+          (where.createdAt as Record<string, unknown>).gte = startOfDay(query.startDate);
         if (query.endDate)
           (where.createdAt as Record<string, unknown>).lte = endOfDay(query.endDate);
       }
@@ -647,7 +652,7 @@ export async function reportRoutes(app: FastifyInstance) {
       if (query.startDate || query.endDate) {
         where.completedAt = {};
         if (query.startDate)
-          (where.completedAt as Record<string, unknown>).gte = new Date(query.startDate);
+          (where.completedAt as Record<string, unknown>).gte = startOfDay(query.startDate);
         if (query.endDate)
           (where.completedAt as Record<string, unknown>).lte = endOfDay(query.endDate);
       }

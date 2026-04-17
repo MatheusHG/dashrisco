@@ -18,6 +18,35 @@ Formato sugerido por item:
 
 ---
 
+## Fix filtro de data Painel de Tasks (createdAt OR completedAt) — 2026-04-17
+- PR/commit: 911bae9 (branch work/2026-04-15)
+- Ambiente: dev (aguarda merge para prod)
+- Testado por: time operacional
+- Notas: Filtro de datas no kanban usava apenas `createdAt`, excluindo tasks concluídas no período mas criadas antes. Corrigido para `(createdAt IN range) OR (completedAt IN range)` — tasks concluídas no período aparecem mesmo que criadas antes.
+
+## Página de edição do grupo de bloqueio — 2026-04-17
+- PR/commit: e2347f5 (branch work/2026-04-15)
+- Ambiente: dev (aguarda merge para prod)
+- Testado por: Eytor
+- Notas: Nova rota `/groups/[id]/edit` com wizard de 4 passos (Info, Condições, Notificações, Revisão) pré-populado do GET. Botão de lápis (Pencil) na lista de grupos. Permite editar nome, lockSeconds, timeSlots, triggerTypes, triggerFilters, notifyPanel/Chat.
+
+## MOD-11 — Cooldown nas condições do webhook — 2026-04-17
+- PR/commit: branch work/2026-04-15
+- Ambiente: dev (aguarda merge para prod)
+- Testado por: Eytor
+- Notas:
+  - Campo `cooldownMinutes` (Int?) no AlertConfig — intervalo mínimo em minutos entre disparos por usuário
+  - Engine (`alertEngine.ts`): após filtros passarem, verifica se existe PanelAlert recente para o mesmo alertConfigId + user_id (via JSON path) dentro do cooldown. Se sim, pula o disparo
+  - API (`alerts.ts`): aceita `cooldownMinutes` no create e update
+  - Frontend: input no Step 6 (Filtros) do wizard de criação e edição, com display na revisão
+  - Fallback: se não houver user_id no webhook, aplica cooldown global (sem filtro por usuário)
+
+## Fix startDate BRT — sobreposição de 3h entre dias — 2026-04-17
+- PR/commit: cfc62ba (branch work/2026-04-15)
+- Ambiente: prod (já deployado)
+- Testado por: time operacional
+- Notas: `startDate` usava UTC midnight (21h BRT dia anterior), criando janela de 27h e sobreposição de 3h entre dias consecutivos. Corrigido para `T00:00:00.000-03:00` em panel.ts e reports.ts.
+
 ## MOD-13 — Filtro por Central de Alerta no Painel de Tasks — 2026-04-17
 - PR/commit: ac0833e (branch work/2026-04-15)
 - Ambiente: dev (aguarda merge para prod)

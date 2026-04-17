@@ -6,6 +6,26 @@ tags: [tarefas, concluido]
 
 Registro cronológico. Item mais recente no topo.
 
+## 2026-04-17 — Fix filtro de data no Painel de Tasks (createdAt OR completedAt)
+- Detalhes: Filtro de datas no kanban usava apenas `createdAt`, excluindo tasks concluídas no período mas criadas antes dele. Corrigido para `WHERE (createdAt IN range) OR (completedAt IN range)`.
+- Branch: work/2026-04-15
+- Commit: 911bae9
+
+## 2026-04-17 — Página de edição do grupo de bloqueio
+- Detalhes: Nova rota `/groups/[id]/edit` com wizard de 4 passos pré-populado via GET /groups/:id. Permite editar nome, lockSeconds, timeSlots, triggerTypes/Filters e notificações. Botão de lápis na lista de grupos ao lado de excluir.
+- Branch: work/2026-04-15
+- Commit: e2347f5
+
+## 2026-04-17 — T-011 Cooldown nas condições do webhook (MOD-11)
+- Detalhes: Campo `cooldownMinutes` no AlertConfig. Engine verifica no PanelAlert se já existe disparo recente para o mesmo alertConfig + user_id dentro do cooldown. UI no wizard (Step 6 Filtros) com input de minutos. Funciona em create e edit.
+- Branch: work/2026-04-15
+- Arquivos: schema.prisma, alertEngine.ts, alerts.ts, alerts/new/page.tsx, alerts/[id]/edit/page.tsx
+
+## 2026-04-17 — Fix startDate BRT (complemento endDate fix)
+- Detalhes: startDate também precisava de -03:00 BRT. Sem fix, startDate=UTC midnight = 21h BRT dia anterior, criando janela de 27h e sobreposição de 3h entre dias consecutivos (701+227≠839).
+- Branch: work/2026-04-15
+- Commit: cfc62ba
+
 ## 2026-04-17 — T-013 Filtro por Central de Alerta no Painel de Tasks (MOD-13)
 - Detalhes: Select "Central de Alerta" adicionado na barra de filtros do Painel de Tasks. API `/panel/tasks` passou a aceitar `alertConfigId` como query param. Frontend busca `/reports/alert-configs` para popular o dropdown.
 - Branch: work/2026-04-15

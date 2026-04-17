@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Pencil, Plus, Database, Play, Loader2, X, Bell, ListTodo, Zap, CheckCircle,
   ArrowLeft, ArrowRight, Filter, Columns, FileText, Check, Eye,
-  AlertTriangle, CheckSquare, Save, Share2, Type,
+  AlertTriangle, CheckSquare, Save, Share2, Type, Clock,
 } from "lucide-react";
 
 const OPERATORS = [
@@ -55,6 +55,7 @@ interface AlertConfig {
   checklist: (string | { type: string; label: string })[];
   createClickupTask: boolean;
   clickupListId: string | null;
+  cooldownMinutes: number | null;
   queryEnabled: boolean;
   clickhouseQuery: string | null;
   selectedFields: string[];
@@ -94,6 +95,7 @@ export default function EditAlertPage() {
   const [availableFields, setAvailableFields] = useState<FieldSchema[]>([]);
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [filters, setFilters] = useState<FilterItem[]>([]);
+  const [cooldownMinutes, setCooldownMinutes] = useState<number | null>(null);
   const [queryEnabled, setQueryEnabled] = useState(false);
   const [clickhouseQuery, setClickhouseQuery] = useState("");
   const [queryConditions, setQueryConditions] = useState<QueryCondition[]>([]);
@@ -122,6 +124,7 @@ export default function EditAlertPage() {
       setClickupListId(data.clickupListId || "");
       setSelectedFields(data.selectedFields || []);
       setFilters((data.filters || []).map((f) => ({ field: f.field, operator: f.operator, value: f.value, logicGate: f.logicGate })));
+      setCooldownMinutes(data.cooldownMinutes ?? null);
       setQueryEnabled(Boolean(data.queryEnabled));
       setClickhouseQuery(data.clickhouseQuery || "");
       setQueryConditions((data.queryConditions || []).map((c) => ({ field: c.field, operator: c.operator, value: c.value, logicGate: c.logicGate })));
@@ -192,6 +195,7 @@ export default function EditAlertPage() {
             logicGate: i < filters.length - 1 ? f.logicGate || "AND" : null,
             order: i,
           })),
+          cooldownMinutes: cooldownMinutes && cooldownMinutes > 0 ? cooldownMinutes : null,
           queryEnabled,
           clickhouseQuery: queryEnabled ? clickhouseQuery : null,
           queryConditions: queryEnabled
@@ -495,6 +499,20 @@ export default function EditAlertPage() {
                   <p className="text-sm font-mono text-foreground">{filters.map((f, i) => `${getFieldLabel(f.field)} ${opLabel(f.operator)} ${f.value ? (getFieldType(f.field) === "money" ? formatCurrency(String(Math.round(Number(f.value) * 100))) : f.value) : "?"}${i < filters.length - 1 ? ` ${f.logicGate || "AND"} ` : ""}`).join("")}</p>
                 </div>
               )}
+
+              {/* Cooldown */}
+              <div className="rounded-xl border border-border/50 p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-amber-500" />
+                  <h3 className="text-sm font-semibold text-foreground">Cooldown</h3>
+                </div>
+                <p className="text-xs text-muted-foreground">Intervalo minimo entre disparos deste alerta para o mesmo usuario. Deixe vazio para desativar.</p>
+                <div className="flex items-center gap-2">
+                  <Input type="number" min={0} placeholder="Ex: 30" value={cooldownMinutes ?? ""} onChange={(e) => setCooldownMinutes(e.target.value ? Number(e.target.value) : null)} className="w-32 h-9 rounded-xl" />
+                  <span className="text-sm text-muted-foreground">minutos</span>
+                </div>
+              </div>
+
               <Nav back={5} next={7} />
             </CardContent>
           </Card>

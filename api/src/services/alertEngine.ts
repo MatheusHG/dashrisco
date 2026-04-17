@@ -58,7 +58,22 @@ export class AlertEngine {
           queryResult = result.row;
         }
 
-        // 3) Executar acoes
+        // 3) Cooldown — intervalo mínimo entre disparos por usuário
+        if (config.cooldownMinutes && config.cooldownMinutes > 0) {
+          const userId = String(normalizedData.user_id ?? normalizedData.login_user_id ?? "");
+          const since = new Date(Date.now() - config.cooldownMinutes * 60000);
+          const cooldownWhere: Record<string, unknown> = {
+            alertConfigId: config.id,
+            createdAt: { gte: since },
+          };
+          if (userId) {
+            cooldownWhere.data = { path: ["user_id"], equals: userId };
+          }
+          const recent = await this.prisma.panelAlert.findFirst({ where: cooldownWhere });
+          if (recent) continue;
+        }
+
+        // 4) Executar acoes
         const enrichedData = queryResult
           ? { ...normalizedData, _queryResult: queryResult }
           : normalizedData;

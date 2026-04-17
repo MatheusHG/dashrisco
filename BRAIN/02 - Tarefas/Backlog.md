@@ -26,5 +26,5 @@ Fila priorizada. Mover para [[Em Andamento]] ao iniciar.
 
 - [ ] **T-009** Área de Reports — [[03 - Modificações/Desejadas#MOD-07]]
 - [ ] **T-010** Esteira de Demandas — [[03 - Modificações/Desejadas#MOD-08]]
-- [ ] **T-011** Cooldown nas condições do webhook — [[03 - Modificações/Desejadas#MOD-11]]
+- [x] **T-011** Cooldown nas condições do webhook — [[03 - Modificações/Desejadas#MOD-11]] ✅ 2026-04-17
 - [ ] **T-012** Área de Promoções (integração Marjo Guard) — [[03 - Modificações/Desejadas#MOD-01]]

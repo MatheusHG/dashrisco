@@ -42,6 +42,8 @@ const createAlertSchema = z.object({
     logicGate: z.enum(["AND", "OR"]).optional().nullable(),
     order: z.number(),
   })),
+  // Cooldown (minutos entre disparos por usuário)
+  cooldownMinutes: z.number().int().min(0).optional().nullable(),
   // ClickHouse query
   queryEnabled: z.boolean().default(false),
   clickhouseQuery: z.string().optional().nullable(),
@@ -129,6 +131,7 @@ export async function alertRoutes(app: FastifyInstance) {
           externalWebhookUrl: body.externalWebhookUrl ?? null,
           selectedFields: body.selectedFields,
           createdBy: request.currentUser!.id,
+          cooldownMinutes: body.cooldownMinutes ?? null,
           queryEnabled: body.queryEnabled,
           clickhouseQuery: body.clickhouseQuery ?? null,
           filters: {
@@ -193,6 +196,7 @@ export async function alertRoutes(app: FastifyInstance) {
           ...(body.checklist !== undefined && { checklist: normalizeChecklist(body.checklist) }),
           ...(body.externalWebhookUrl !== undefined && { externalWebhookUrl: body.externalWebhookUrl ?? null }),
           ...(body.selectedFields !== undefined && { selectedFields: body.selectedFields }),
+          ...(body.cooldownMinutes !== undefined && { cooldownMinutes: body.cooldownMinutes ?? null }),
           ...(body.queryEnabled !== undefined && { queryEnabled: body.queryEnabled }),
           ...(body.clickhouseQuery !== undefined && { clickhouseQuery: body.clickhouseQuery ?? null }),
           ...(body.filters && {

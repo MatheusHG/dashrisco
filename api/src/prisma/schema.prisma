@@ -127,6 +127,9 @@ model AlertConfig {
   // Webhook externo (compartilhar alerta)
   externalWebhookUrl String? @map("external_webhook_url")
 
+  // Cooldown (intervalo mínimo entre disparos por usuário, em minutos)
+  cooldownMinutes Int? @map("cooldown_minutes")
+
   // Campos e filtros
   selectedFields Json          @map("selected_fields")
   filters        AlertFilter[]

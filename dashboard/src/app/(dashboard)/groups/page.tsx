@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Lock, Unlock, Settings, Users, Timer, Loader2, ShieldOff, ShieldAlert, ShieldCheck, Clock, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Lock, Unlock, Settings, Users, Timer, Loader2, ShieldOff, ShieldAlert, ShieldCheck, Clock, Trash2, AlertTriangle, Pencil } from "lucide-react";
 import Link from "next/link";
 
 interface LockGroupEvent {
@@ -224,6 +224,15 @@ export default function GroupsPage() {
                           Bloquear
                         </Button>
                       )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
+                        onClick={() => window.location.href = `/groups/${group.id}/edit`}
+                        title="Editar grupo"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
