@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Pencil, Plus, Database, Play, Loader2, X, Bell, ListTodo, Zap, CheckCircle,
   MessageSquare, ArrowLeft, ArrowRight, Filter, Columns, FileText, Check, Eye,
-  AlertTriangle, CheckSquare, GripVertical, Share2, Type,
+  AlertTriangle, CheckSquare, GripVertical, Share2, Type, Clock,
 } from "lucide-react";
 
 
@@ -69,6 +69,7 @@ export default function NewAlertPage() {
   const [availableFields, setAvailableFields] = useState<FieldSchema[]>([]);
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [filters, setFilters] = useState<FilterItem[]>([]);
+  const [cooldownMinutes, setCooldownMinutes] = useState<number | null>(null);
   const [queryEnabled, setQueryEnabled] = useState(false);
   const [clickhouseQuery, setClickhouseQuery] = useState("");
   const [queryConditions, setQueryConditions] = useState<QueryCondition[]>([]);
@@ -109,6 +110,7 @@ export default function NewAlertPage() {
           clickupListId: createClickupTask ? clickupListId : null,
           checklist: createPanelTask ? checklist : [], selectedFields,
           filters: filters.map((f, i) => ({ field: f.field, operator: f.operator, value: f.value, logicGate: i < filters.length - 1 ? f.logicGate || "AND" : null, order: i })),
+          cooldownMinutes: cooldownMinutes && cooldownMinutes > 0 ? cooldownMinutes : null,
           queryEnabled, clickhouseQuery: queryEnabled ? clickhouseQuery : null,
           queryConditions: queryEnabled ? queryConditions.map((c, i) => ({ field: c.field, operator: c.operator, value: c.value, logicGate: i < queryConditions.length - 1 ? c.logicGate || "AND" : null, order: i })) : [],
         }),
@@ -421,6 +423,20 @@ export default function NewAlertPage() {
                   <p className="text-sm font-mono text-foreground">{filters.map((f, i) => `${getFieldLabel(f.field)} ${opLabel(f.operator)} ${f.value ? (getFieldType(f.field) === "money" ? formatCurrency(String(Math.round(Number(f.value) * 100))) : f.value) : "?"}${i < filters.length - 1 ? ` ${f.logicGate || "AND"} ` : ""}`).join("")}</p>
                 </div>
               )}
+
+              {/* Cooldown */}
+              <div className="rounded-xl border border-border/50 p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-amber-500" />
+                  <h3 className="text-sm font-semibold text-foreground">Cooldown</h3>
+                </div>
+                <p className="text-xs text-muted-foreground">Intervalo minimo entre disparos deste alerta para o mesmo usuario. Deixe vazio para desativar.</p>
+                <div className="flex items-center gap-2">
+                  <Input type="number" min={0} placeholder="Ex: 30" value={cooldownMinutes ?? ""} onChange={(e) => setCooldownMinutes(e.target.value ? Number(e.target.value) : null)} className="w-32 h-9 rounded-xl" />
+                  <span className="text-sm text-muted-foreground">minutos</span>
+                </div>
+              </div>
+
               <Nav back={5} next={7} />
             </CardContent>
           </Card>
@@ -577,6 +593,13 @@ export default function NewAlertPage() {
                   <div className="rounded-xl bg-muted/30 p-3">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Filtros Webhook</p>
                     <p className="text-sm font-mono">{filters.map((f, i) => `${getFieldLabel(f.field)} ${opLabel(f.operator)} ${f.value ? formatCurrency(String(Math.round(Number(f.value) * 100))) : "?"}${i < filters.length - 1 ? ` ${f.logicGate || "AND"} ` : ""}`).join("")}</p>
+                  </div>
+                )}
+
+                {cooldownMinutes != null && cooldownMinutes > 0 && (
+                  <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 p-3 flex items-center gap-2">
+                    <Clock className="h-3.5 w-3.5 text-amber-500" />
+                    <p className="text-sm text-foreground">Cooldown: <strong>{cooldownMinutes} minutos</strong> por usuario</p>
                   </div>
                 )}
 

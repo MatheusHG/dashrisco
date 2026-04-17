@@ -86,9 +86,10 @@ Sugestões diretas do cliente (PDF na raiz do projeto). Cada item é um candidat
 - **Tela:** Wizard de condições do webhook → aba "Filtros".
 
 ## MOD-11 — Nova condição **Cooldown** nos webhooks
-- [ ] Criar filtro "Cooldown" para configurar intervalo de tempo entre disparos de um mesmo alerta.
+- [x] Criar filtro "Cooldown" para configurar intervalo de tempo entre disparos de um mesmo alerta.
+- **Status:** ✅ Implementado em 2026-04-17 — branch work/2026-04-15
 - **Tipo:** Nova feature
-- **Tela:** Condições do Webhook (ao lado de "Valor da Aposta" etc.).
+- **Tela:** Condições do Webhook → Step 6 (Filtros), seção Cooldown com input de minutos.
 
 ## MOD-12 — Checklist de verificação com itens em **formato texto**
 - [x] Em "Checklist de Verificação" (criação/edição de alertas), permitir inserir itens tipo **texto** (cabeçalho/pergunta), não apenas checkbox.
@@ -127,7 +128,7 @@ Sugestões diretas do cliente (PDF na raiz do projeto). Cada item é um candidat
 | MOD-08 | Esteira de Demandas | Feature | ⏳ |
 | MOD-09 | Grupos de Bloqueio | Bug/Feat | ✅ |
 | MOD-10 | Condição "Data da Aposta" sem opções | Bug | ✅ |
-| MOD-11 | Condição Cooldown | Feature | ⏳ |
+| MOD-11 | Condição Cooldown | Feature | ✅ |
 | MOD-12 | Checklist em formato texto | Melhoria | ✅ |
 | MOD-13 | Filtro por Central de Alerta (Tasks) | Melhoria | ✅ |
 
