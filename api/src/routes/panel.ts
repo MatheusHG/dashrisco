@@ -228,11 +228,13 @@ export async function panelRoutes(app: FastifyInstance) {
         where.alertConfigId = { in: configsOfType.map((c) => c.id) };
       }
       if (query.startDate || query.endDate) {
-        where.createdAt = {};
-        if (query.startDate)
-          (where.createdAt as Record<string, unknown>).gte = new Date(query.startDate + "T00:00:00.000-03:00");
-        if (query.endDate)
-          (where.createdAt as Record<string, unknown>).lte = new Date(query.endDate + "T23:59:59.999-03:00");
+        const dateRange: Record<string, unknown> = {};
+        if (query.startDate) dateRange.gte = new Date(query.startDate + "T00:00:00.000-03:00");
+        if (query.endDate) dateRange.lte = new Date(query.endDate + "T23:59:59.999-03:00");
+        where.OR = [
+          { createdAt: dateRange },
+          { completedAt: dateRange },
+        ];
       }
 
       const [tasks, total, users] = await Promise.all([
