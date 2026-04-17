@@ -162,7 +162,7 @@ export async function panelRoutes(app: FastifyInstance) {
         where.createdAt = {};
         if (query.startDate)
           (where.createdAt as Record<string, unknown>).gte = new Date(
-            query.startDate
+            query.startDate + "T00:00:00.000-03:00"
           );
         if (query.endDate)
           (where.createdAt as Record<string, unknown>).lte = new Date(
@@ -230,7 +230,7 @@ export async function panelRoutes(app: FastifyInstance) {
       if (query.startDate || query.endDate) {
         where.createdAt = {};
         if (query.startDate)
-          (where.createdAt as Record<string, unknown>).gte = new Date(query.startDate);
+          (where.createdAt as Record<string, unknown>).gte = new Date(query.startDate + "T00:00:00.000-03:00");
         if (query.endDate)
           (where.createdAt as Record<string, unknown>).lte = new Date(query.endDate + "T23:59:59.999-03:00");
       }
