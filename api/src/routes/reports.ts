@@ -1,11 +1,9 @@
 import { FastifyInstance } from "fastify";
 import { authorize } from "../middlewares/auth";
 
-/** Converte "2026-03-25" em fim do dia (23:59:59.999) */
+/** Converte "2026-03-25" em fim do dia no fuso BRT (UTC-3): 23:59:59.999 -03:00 = 02:59:59.999Z do dia seguinte */
 function endOfDay(dateStr: string): Date {
-  const d = new Date(dateStr);
-  d.setUTCHours(23, 59, 59, 999);
-  return d;
+  return new Date(dateStr + "T23:59:59.999-03:00");
 }
 
 export async function reportRoutes(app: FastifyInstance) {

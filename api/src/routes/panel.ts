@@ -166,7 +166,7 @@ export async function panelRoutes(app: FastifyInstance) {
           );
         if (query.endDate)
           (where.createdAt as Record<string, unknown>).lte = new Date(
-            query.endDate
+            query.endDate + "T23:59:59.999-03:00"
           );
       }
 
@@ -232,7 +232,7 @@ export async function panelRoutes(app: FastifyInstance) {
         if (query.startDate)
           (where.createdAt as Record<string, unknown>).gte = new Date(query.startDate);
         if (query.endDate)
-          (where.createdAt as Record<string, unknown>).lte = new Date(query.endDate + "T23:59:59.999Z");
+          (where.createdAt as Record<string, unknown>).lte = new Date(query.endDate + "T23:59:59.999-03:00");
       }
 
       const [tasks, total, users] = await Promise.all([
