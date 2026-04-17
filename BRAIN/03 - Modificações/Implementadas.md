@@ -18,6 +18,24 @@ Formato sugerido por item:
 
 ---
 
+## MOD-13 — Filtro por Central de Alerta no Painel de Tasks — 2026-04-17
+- PR/commit: ac0833e (branch work/2026-04-15)
+- Ambiente: dev (aguarda merge para prod)
+- Testado por: Eytor
+- Notas: Select "Central de Alerta" na barra de filtros do Kanban. API `/panel/tasks` aceita `?alertConfigId=`. Dropdown populado via `/reports/alert-configs`.
+
+## Fix endDate — fuso BRT (UTC-3) — 2026-04-17
+- PR/commit: 4022494 (branch work/2026-04-15)
+- Ambiente: dev (aguarda merge para prod)
+- Testado por: Eytor
+- Notas: `panel/alerts` nunca tinha a correção de endDate (midnight UTC). `panel/tasks` e `reports.ts` usavam `T23:59:59.999Z` = 21h BRT. Trocado para `T23:59:59.999-03:00` em todos os endpoints afetados.
+
+## MOD-02 extensão — Link NGX em alertas e tasks — 2026-04-17
+- PR/commit: cad8fef (branch work/2026-04-15)
+- Ambiente: dev (aguarda merge para prod)
+- Testado por: Eytor
+- Notas: `user_id` nos dados do webhook vira link clicável em `panel/alerts/page.tsx` e `panel/tasks/page.tsx`.
+
 ## MOD-09 — Grupos de Bloqueio — 2026-04-15
 - PR/commit: 37730e5 + bb90d35 (branch work/2026-04-15) — PR #4
 - Ambiente: dev (aguarda merge para prod)
