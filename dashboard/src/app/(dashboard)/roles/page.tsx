@@ -33,6 +33,10 @@ const permissionLabels: Record<string, { label: string; desc: string }> = {
   "logs:read": { label: "Ver Logs", desc: "Visualizar logs de auditoria" },
   "panel:read": { label: "Ver Painel", desc: "Acessar painel de alertas e tasks" },
   "settings:manage": { label: "Configuracoes", desc: "Gerenciar configuracoes do sistema" },
+  "category:sportbook": { label: "Categoria Sportbook", desc: "Notificacoes e tasks de apostas esportivas" },
+  "category:cassino": { label: "Categoria Cassino", desc: "Notificacoes e tasks de cassino" },
+  "category:finance": { label: "Categoria Financeiro", desc: "Notificacoes e tasks de depositos e saques" },
+  "category:blocks": { label: "Categoria Bloqueios", desc: "Notificacoes e tasks de grupos de bloqueio" },
 };
 
 export default function RolesPage() {
@@ -107,10 +111,13 @@ export default function RolesPage() {
         method: "PUT",
         body: JSON.stringify({ name: editName, description: editDescription || undefined, permissionIds: editPermissions }),
       });
-      setEditingId(null);
-      fetchData();
-    } catch (err) { console.error(err); }
-    finally { setSaving(false); }
+      // Reload to propagate permission changes through AuthContext
+      // (tabs, hasPermission checks, SSE reconnect with fresh state).
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      setSaving(false);
+    }
   };
 
   const handleDelete = async (id: string) => {

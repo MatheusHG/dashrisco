@@ -46,6 +46,7 @@ const createAlertSchema = z.object({
   cooldownMinutes: z.number().int().min(0).optional().nullable(),
   // Pagamento Antecipado (só SPORT_BET / SPORT_PRIZE)
   requireEarlyPayout: z.boolean().default(false),
+  earlyPayoutProviders: z.array(z.enum(["NGX", "RADAR"])).default(["NGX"]),
   // ClickHouse query
   queryEnabled: z.boolean().default(false),
   clickhouseQuery: z.string().optional().nullable(),
@@ -135,6 +136,7 @@ export async function alertRoutes(app: FastifyInstance) {
           createdBy: request.currentUser!.id,
           cooldownMinutes: body.cooldownMinutes ?? null,
           requireEarlyPayout: body.requireEarlyPayout,
+          earlyPayoutProviders: body.earlyPayoutProviders,
           queryEnabled: body.queryEnabled,
           clickhouseQuery: body.clickhouseQuery ?? null,
           filters: {
@@ -201,6 +203,7 @@ export async function alertRoutes(app: FastifyInstance) {
           ...(body.selectedFields !== undefined && { selectedFields: body.selectedFields }),
           ...(body.cooldownMinutes !== undefined && { cooldownMinutes: body.cooldownMinutes ?? null }),
           ...(body.requireEarlyPayout !== undefined && { requireEarlyPayout: body.requireEarlyPayout }),
+          ...(body.earlyPayoutProviders !== undefined && { earlyPayoutProviders: body.earlyPayoutProviders }),
           ...(body.queryEnabled !== undefined && { queryEnabled: body.queryEnabled }),
           ...(body.clickhouseQuery !== undefined && { clickhouseQuery: body.clickhouseQuery ?? null }),
           ...(body.filters && {

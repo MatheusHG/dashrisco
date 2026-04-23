@@ -12,16 +12,17 @@ datasource db {
 // ============================================
 
 model User {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
-  roleId    String
-  role      Role     @relation(fields: [roleId], references: [id])
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  logs      Log[]
+  id            String      @id @default(uuid())
+  name          String
+  email         String      @unique
+  password      String
+  roleId        String
+  role          Role        @relation(fields: [roleId], references: [id])
+  active        Boolean     @default(true)
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  logs          Log[]
+  assignedTasks PanelTask[] @relation("TaskAssignee")
 
   @@map("users")
 }
@@ -130,9 +131,11 @@ model AlertConfig {
   // Cooldown (intervalo mínimo entre disparos por usuário, em minutos)
   cooldownMinutes Int? @map("cooldown_minutes")
 
-  // Só dispara se a aposta tiver algum bet_events[].odds_type em HOME_EP/AWAY_EP/DRAW_EP.
+  // Só dispara se a aposta tiver algum bet_events[].odds_type compatível com os provedores selecionados.
   // Aplicável apenas a SPORT_BET e SPORT_PRIZE.
-  requireEarlyPayout Boolean @default(false) @map("require_early_payout")
+  // Provedores suportados: "NGX" (HOME_EP/DRAW_EP/AWAY_EP) e "RADAR" (EP_1X2).
+  requireEarlyPayout    Boolean @default(false) @map("require_early_payout")
+  earlyPayoutProviders  Json    @default("[\"NGX\"]") @map("early_payout_providers")
 
   // Campos e filtros
   selectedFields Json          @map("selected_fields")
@@ -212,6 +215,7 @@ model PanelTask {
   checklist     Json             @default("[]") // ex: [{"label":"FTD","checked":false}]
   parecer       String?          // parecer final da analise
   assignedTo    String?          @map("assigned_to")
+  assignedUser  User?            @relation("TaskAssignee", fields: [assignedTo], references: [id])
   createdBy     String?          @map("created_by")
   completedBy   String?          @map("completed_by")
   completedAt   DateTime?        @map("completed_at")

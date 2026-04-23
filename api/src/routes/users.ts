@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { authorize } from "../middlewares/auth";
 import { createLog } from "../middlewares/logger";
+import { invalidateUser } from "../services/permissionCache";
 
 const createUserSchema = z.object({
   name: z.string().min(2),
@@ -151,6 +152,8 @@ export async function userRoutes(app: FastifyInstance) {
         },
       });
 
+      invalidateUser(id);
+
       await createLog(app.prisma, request, {
         action: "user.updated",
         entity: "user",
@@ -197,6 +200,8 @@ export async function userRoutes(app: FastifyInstance) {
         where: { id },
         data: { active: false },
       });
+
+      invalidateUser(id);
 
       await createLog(app.prisma, request, {
         action: "user.deactivated",

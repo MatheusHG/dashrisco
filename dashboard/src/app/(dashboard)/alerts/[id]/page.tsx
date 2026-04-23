@@ -71,6 +71,7 @@ interface AlertConfig {
   clickupListId: string | null;
   selectedFields: string[];
   requireEarlyPayout: boolean;
+  earlyPayoutProviders?: ("NGX" | "RADAR")[] | unknown;
   filters: AlertFilter[];
   createdAt: string;
   updatedAt: string;
@@ -308,12 +309,24 @@ export default function AlertDetailPage() {
             <GitBranch className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm font-medium">Condicoes do Alerta</p>
           </div>
-          {alert.requireEarlyPayout && (alert.webhookType === "SPORT_BET" || alert.webhookType === "SPORT_PRIZE") && (
-            <div className="mb-3 rounded-lg bg-primary/5 border border-primary/20 p-3 flex items-center gap-2">
-              <Zap className="h-3.5 w-3.5 text-primary" />
-              <p className="text-sm text-foreground"><strong>Pagamento Antecipado</strong></p>
-            </div>
-          )}
+          {alert.requireEarlyPayout && (alert.webhookType === "SPORT_BET" || alert.webhookType === "SPORT_PRIZE") && (() => {
+            const providers = Array.isArray(alert.earlyPayoutProviders)
+              ? (alert.earlyPayoutProviders as unknown[]).filter(
+                  (p): p is "NGX" | "RADAR" => p === "NGX" || p === "RADAR"
+                )
+              : [];
+            const label =
+              providers.length === 0 ? "NGX" : providers.length === 2 ? "AMBOS" : providers[0]!;
+            return (
+              <div className="mb-3 rounded-lg bg-primary/5 border border-primary/20 p-3 flex items-center gap-2">
+                <Zap className="h-3.5 w-3.5 text-primary" />
+                <p className="text-sm text-foreground">
+                  <strong>Pagamento Antecipado</strong> <span className="text-muted-foreground">·</span>{" "}
+                  <span className="font-semibold">{label}</span>
+                </p>
+              </div>
+            );
+          })()}
           {alert.filters.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Sem filtros — todos os eventos do tipo{" "}
