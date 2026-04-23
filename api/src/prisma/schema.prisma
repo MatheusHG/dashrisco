@@ -130,6 +130,10 @@ model AlertConfig {
   // Cooldown (intervalo mínimo entre disparos por usuário, em minutos)
   cooldownMinutes Int? @map("cooldown_minutes")
 
+  // Só dispara se a aposta tiver algum bet_events[].odds_type em HOME_EP/AWAY_EP/DRAW_EP.
+  // Aplicável apenas a SPORT_BET e SPORT_PRIZE.
+  requireEarlyPayout Boolean @default(false) @map("require_early_payout")
+
   // Campos e filtros
   selectedFields Json          @map("selected_fields")
   filters        AlertFilter[]

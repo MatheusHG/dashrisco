@@ -56,6 +56,7 @@ interface AlertConfig {
   createClickupTask: boolean;
   clickupListId: string | null;
   cooldownMinutes: number | null;
+  requireEarlyPayout: boolean;
   queryEnabled: boolean;
   clickhouseQuery: string | null;
   selectedFields: string[];
@@ -96,6 +97,7 @@ export default function EditAlertPage() {
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [filters, setFilters] = useState<FilterItem[]>([]);
   const [cooldownMinutes, setCooldownMinutes] = useState<number | null>(null);
+  const [requireEarlyPayout, setRequireEarlyPayout] = useState(false);
   const [queryEnabled, setQueryEnabled] = useState(false);
   const [clickhouseQuery, setClickhouseQuery] = useState("");
   const [queryConditions, setQueryConditions] = useState<QueryCondition[]>([]);
@@ -125,6 +127,7 @@ export default function EditAlertPage() {
       setSelectedFields(data.selectedFields || []);
       setFilters((data.filters || []).map((f) => ({ field: f.field, operator: f.operator, value: f.value, logicGate: f.logicGate })));
       setCooldownMinutes(data.cooldownMinutes ?? null);
+      setRequireEarlyPayout(Boolean(data.requireEarlyPayout));
       setQueryEnabled(Boolean(data.queryEnabled));
       setClickhouseQuery(data.clickhouseQuery || "");
       setQueryConditions((data.queryConditions || []).map((c) => ({ field: c.field, operator: c.operator, value: c.value, logicGate: c.logicGate })));
@@ -196,6 +199,7 @@ export default function EditAlertPage() {
             order: i,
           })),
           cooldownMinutes: cooldownMinutes && cooldownMinutes > 0 ? cooldownMinutes : null,
+          requireEarlyPayout: (webhookType === "SPORT_BET" || webhookType === "SPORT_PRIZE") ? requireEarlyPayout : false,
           queryEnabled,
           clickhouseQuery: queryEnabled ? clickhouseQuery : null,
           queryConditions: queryEnabled
@@ -450,6 +454,17 @@ export default function EditAlertPage() {
                   </label>
                 ))}
               </div>
+
+              {(webhookType === "SPORT_BET" || webhookType === "SPORT_PRIZE") && (
+                <label className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer transition-all ${requireEarlyPayout ? "border-primary bg-primary/10" : "border-border/50 hover:bg-muted/50"}`}>
+                  <input type="checkbox" checked={requireEarlyPayout} onChange={(e) => setRequireEarlyPayout(e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Pagamento Antecipado</p>
+                    <p className="text-[11px] text-muted-foreground">Só dispara se a aposta tiver algum evento com odds_type em HOME_EP, AWAY_EP ou DRAW_EP.</p>
+                  </div>
+                </label>
+              )}
+
               <Nav back={4} next={6} nextDisabled={!canNext(5)} />
             </CardContent>
           </Card>

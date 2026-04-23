@@ -70,6 +70,7 @@ export default function NewAlertPage() {
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [filters, setFilters] = useState<FilterItem[]>([]);
   const [cooldownMinutes, setCooldownMinutes] = useState<number | null>(null);
+  const [requireEarlyPayout, setRequireEarlyPayout] = useState(false);
   const [queryEnabled, setQueryEnabled] = useState(false);
   const [clickhouseQuery, setClickhouseQuery] = useState("");
   const [queryConditions, setQueryConditions] = useState<QueryCondition[]>([]);
@@ -111,6 +112,7 @@ export default function NewAlertPage() {
           checklist: createPanelTask ? checklist : [], selectedFields,
           filters: filters.map((f, i) => ({ field: f.field, operator: f.operator, value: f.value, logicGate: i < filters.length - 1 ? f.logicGate || "AND" : null, order: i })),
           cooldownMinutes: cooldownMinutes && cooldownMinutes > 0 ? cooldownMinutes : null,
+          requireEarlyPayout: (webhookType === "SPORT_BET" || webhookType === "SPORT_PRIZE") ? requireEarlyPayout : false,
           queryEnabled, clickhouseQuery: queryEnabled ? clickhouseQuery : null,
           queryConditions: queryEnabled ? queryConditions.map((c, i) => ({ field: c.field, operator: c.operator, value: c.value, logicGate: i < queryConditions.length - 1 ? c.logicGate || "AND" : null, order: i })) : [],
         }),
@@ -373,6 +375,17 @@ export default function NewAlertPage() {
                   </label>
                 ))}
               </div>
+
+              {(webhookType === "SPORT_BET" || webhookType === "SPORT_PRIZE") && (
+                <label className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer transition-all ${requireEarlyPayout ? "border-primary bg-primary/10" : "border-border/50 hover:bg-muted/50"}`}>
+                  <input type="checkbox" checked={requireEarlyPayout} onChange={(e) => setRequireEarlyPayout(e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Pagamento Antecipado</p>
+                    <p className="text-[11px] text-muted-foreground">Só dispara se a aposta tiver algum evento com odds_type em HOME_EP, AWAY_EP ou DRAW_EP.</p>
+                  </div>
+                </label>
+              )}
+
               <Nav back={4} next={6} nextDisabled={!canNext(5)} />
             </CardContent>
           </Card>

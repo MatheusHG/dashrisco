@@ -8,6 +8,20 @@ type AlertConfigFull = AlertConfig & {
   queryConditions: AlertQueryCondition[];
 };
 
+const EARLY_PAYOUT_ODDS_TYPES = new Set(["HOME_EP", "AWAY_EP", "DRAW_EP"]);
+
+function hasEarlyPayoutEvent(data: Record<string, unknown>): boolean {
+  const events = data.bet_events;
+  if (!Array.isArray(events)) return false;
+  for (const ev of events) {
+    const oddsType = (ev as { odds_type?: unknown } | null)?.odds_type;
+    if (typeof oddsType === "string" && EARLY_PAYOUT_ODDS_TYPES.has(oddsType)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Motor de alertas dinâmicos.
  * Avalia os dados do webhook contra as configurações de alerta ativas
@@ -29,6 +43,15 @@ export class AlertEngine {
   ): Promise<void> {
     const normalizedData = this.normalizeWebhookData(webhookType, data);
 
+    const incomingUserId = String(
+      normalizedData.user_id ?? normalizedData.login_user_id ?? ""
+    );
+    if (incomingUserId === "697a731307486f0027370128") {
+      console.log(
+        `[AlertEngine][debug user 697a731307486f0027370128] webhookType=${webhookType} payload=${this.safeStringify(data)}`
+      );
+    }
+
     const configs = await this.prisma.alertConfig.findMany({
       where: {
         webhookType: webhookType as any,
@@ -42,6 +65,15 @@ export class AlertEngine {
 
     for (const config of configs) {
       try {
+        // 0) Pagamento Antecipado — só aplicável a SPORT_BET / SPORT_PRIZE
+        if (
+          config.requireEarlyPayout &&
+          (config.webhookType === "SPORT_BET" || config.webhookType === "SPORT_PRIZE") &&
+          !hasEarlyPayoutEvent(normalizedData)
+        ) {
+          continue;
+        }
+
         // 1) Filtros basicos no webhook data
         const filtersOk = this.evaluateFilters(config.filters, normalizedData);
         if (!filtersOk) {
