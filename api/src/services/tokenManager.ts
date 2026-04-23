@@ -19,7 +19,7 @@
 
 import axios from "axios";
 import { Agent as HttpsAgent } from "https";
-import { generate as totpGenerate } from "otplib";
+import { authenticator } from "otplib";
 import { PrismaClient } from "@prisma/client";
 import { decrypt } from "./credentialVault";
 import { invalidateSbCache } from "./sbClient";
@@ -80,7 +80,7 @@ class TokenManager {
       throw new Error("SB_TOTP_SECRET_ENC não configurado. Execute setup-sb-credentials.");
     }
     const totpSecret = decrypt(row.value);
-    return totpGenerate({ secret: totpSecret });
+    return authenticator.generate(totpSecret);
   }
 
   private async _performLogin(prisma: PrismaClient): Promise<string> {
@@ -106,7 +106,7 @@ class TokenManager {
     const totpSecret = decrypt(totpSecretEnc);
 
     // 3. Gerar código TOTP atual
-    const authCode = await totpGenerate({ secret: totpSecret });
+    const authCode = authenticator.generate(totpSecret);
 
     // 4. Fazer login (Referer/Origin identificam a empresa no backend multi-tenant)
     const response = await axios.post(
