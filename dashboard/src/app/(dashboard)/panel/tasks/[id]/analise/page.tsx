@@ -28,6 +28,12 @@ function formatValue(key: string, value: unknown): string {
   if (typeof value === "boolean") return value ? "Sim" : "Nao";
   if ((key.includes("value") || key.includes("credits") || key.includes("prize")) && typeof value === "number")
     return `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+  if (Array.isArray(value)) {
+    return `${value.length} ${value.length === 1 ? "item" : "itens"}`;
+  }
+  if (typeof value === "object") {
+    try { return JSON.stringify(value); } catch { return "-"; }
+  }
   return String(value);
 }
 

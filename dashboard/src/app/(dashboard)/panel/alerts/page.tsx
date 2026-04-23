@@ -68,6 +68,12 @@ function formatValue(key: string, value: unknown): string {
   ) {
     return `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
   }
+  if (Array.isArray(value)) {
+    return `${value.length} ${value.length === 1 ? "item" : "itens"}`;
+  }
+  if (typeof value === "object") {
+    try { return JSON.stringify(value); } catch { return "-"; }
+  }
   return String(value);
 }
 

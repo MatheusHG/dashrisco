@@ -375,17 +375,6 @@ export default function NewAlertPage() {
                   </label>
                 ))}
               </div>
-
-              {(webhookType === "SPORT_BET" || webhookType === "SPORT_PRIZE") && (
-                <label className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer transition-all ${requireEarlyPayout ? "border-primary bg-primary/10" : "border-border/50 hover:bg-muted/50"}`}>
-                  <input type="checkbox" checked={requireEarlyPayout} onChange={(e) => setRequireEarlyPayout(e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Pagamento Antecipado</p>
-                    <p className="text-[11px] text-muted-foreground">Só dispara se a aposta tiver algum evento com odds_type em HOME_EP, AWAY_EP ou DRAW_EP.</p>
-                  </div>
-                </label>
-              )}
-
               <Nav back={4} next={6} nextDisabled={!canNext(5)} />
             </CardContent>
           </Card>
@@ -435,6 +424,16 @@ export default function NewAlertPage() {
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Preview</p>
                   <p className="text-sm font-mono text-foreground">{filters.map((f, i) => `${getFieldLabel(f.field)} ${opLabel(f.operator)} ${f.value ? (getFieldType(f.field) === "money" ? formatCurrency(String(Math.round(Number(f.value) * 100))) : f.value) : "?"}${i < filters.length - 1 ? ` ${f.logicGate || "AND"} ` : ""}`).join("")}</p>
                 </div>
+              )}
+
+              {(webhookType === "SPORT_BET" || webhookType === "SPORT_PRIZE") && (
+                <label className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer transition-all ${requireEarlyPayout ? "border-primary bg-primary/10" : "border-border/50 hover:bg-muted/50"}`}>
+                  <input type="checkbox" checked={requireEarlyPayout} onChange={(e) => setRequireEarlyPayout(e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Pagamento Antecipado</p>
+                    <p className="text-[11px] text-muted-foreground">Só dispara se a aposta tiver algum evento com odds_type em HOME_EP, AWAY_EP ou DRAW_EP.</p>
+                  </div>
+                </label>
               )}
 
               {/* Cooldown */}
