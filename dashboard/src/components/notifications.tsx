@@ -1,16 +1,21 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { api } from "@/lib/api";
 import { getFieldLabel, webhookTypeLabels } from "@/lib/field-labels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bell, X, ExternalLink, Play, CheckCircle } from "lucide-react";
+import { Bell, X, ExternalLink, Play, CheckCircle, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
+import { CATEGORY_PERMISSIONS, type AlertCategory } from "@/lib/categories";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
-
+const COLLAPSED_STORAGE_KEY = "notifications_panel_collapsed";
+const CATEGORY_STORAGE_KEY = "notifications_panel_category";
+const ALERT_FILTER_STORAGE_KEY = "notifications_panel_alert";
+const ALL_ALERTS = "__all__";
 
 interface Notification {
   id: string;
@@ -23,23 +28,109 @@ interface Notification {
   alertConfig: { name: string } | null;
   taskId?: string | null;
   taskStatus?: string | null;
+  assignedToId?: string | null;
+  assignedToName?: string | null;
 }
+
+interface TaskUpdateEvent {
+  _event: "update";
+  id: string;
+  taskId: string | null;
+  taskStatus: string | null;
+  assignedToId: string | null;
+  assignedToName: string | null;
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0]!.charAt(0).toUpperCase();
+  return (parts[0]!.charAt(0) + parts[parts.length - 1]!.charAt(0)).toUpperCase();
+}
+
+function AssigneeAvatar({ name }: { name: string }) {
+  return (
+    <div
+      title={`Assumido por ${name}`}
+      className="ml-auto shrink-0 flex h-6 w-6 items-center justify-center rounded-full bg-primary/15 text-primary text-[10px] font-semibold ring-1 ring-primary/30"
+    >
+      {getInitials(name)}
+    </div>
+  );
+}
+
+type CategoryId = "todos" | AlertCategory;
+
+const CATEGORIES: {
+  id: CategoryId;
+  label: string;
+  permission: string | null;
+  match: (n: Notification) => boolean;
+}[] = [
+  { id: "todos", label: "Todos", permission: null, match: () => true },
+  {
+    id: "sportbook",
+    label: "Sportbook",
+    permission: CATEGORY_PERMISSIONS.sportbook,
+    match: (n) => ["SPORT_BET", "SPORT_PRIZE"].includes(n.webhookType),
+  },
+  {
+    id: "cassino",
+    label: "Cassino",
+    permission: CATEGORY_PERMISSIONS.cassino,
+    match: (n) => ["CASINO_BET", "CASINO_PRIZE", "CASINO_REFUND"].includes(n.webhookType),
+  },
+  {
+    id: "finance",
+    label: "Financeiro",
+    permission: CATEGORY_PERMISSIONS.finance,
+    match: (n) =>
+      ["DEPOSIT", "DEPOSIT_REQUEST", "WITHDRAWAL_REQUEST", "WITHDRAWAL_CONFIRMATION"].includes(
+        n.webhookType
+      ),
+  },
+  {
+    id: "blocks",
+    label: "Bloqueios",
+    permission: CATEGORY_PERMISSIONS.blocks,
+    match: (n) => n.source === "group_lock",
+  },
+];
 
 export function NotificationBell() {
   const router = useRouter();
+  const { user: currentUser, hasPermission } = useAuth();
+
+  const visibleCategories = useMemo(
+    () =>
+      CATEGORIES.filter(
+        (c) => c.permission === null || hasPermission(c.permission)
+      ),
+    [hasPermission]
+  );
+  const hasAnyCategory = visibleCategories.some((c) => c.permission !== null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [category, setCategory] = useState<CategoryId>("todos");
+  const [alertFilter, setAlertFilter] = useState<string>(ALL_ALERTS);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [popup, setPopup] = useState<Notification | null>(null);
   const popupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
 
-  // Load read IDs from localStorage
+  // Load persisted state
   useEffect(() => {
     try {
-      const stored = localStorage.getItem("notifications_read_ids");
-      if (stored) setReadIds(new Set(JSON.parse(stored)));
+      const storedRead = localStorage.getItem("notifications_read_ids");
+      if (storedRead) setReadIds(new Set(JSON.parse(storedRead)));
+      const storedCollapsed = localStorage.getItem(COLLAPSED_STORAGE_KEY);
+      if (storedCollapsed === "1") setCollapsed(true);
+      const storedCategory = localStorage.getItem(CATEGORY_STORAGE_KEY) as CategoryId | null;
+      if (storedCategory && CATEGORIES.some((c) => c.id === storedCategory)) {
+        setCategory(storedCategory);
+      }
+      const storedAlert = localStorage.getItem(ALERT_FILTER_STORAGE_KEY);
+      if (storedAlert) setAlertFilter(storedAlert);
     } catch {}
   }, []);
 
@@ -73,7 +164,6 @@ export function NotificationBell() {
     }
   }, []);
 
-  // Initial fetch of existing notifications
   const fetchNotifications = useCallback(async () => {
     try {
       const data = await api.fetch<Notification[]>("/panel/notifications");
@@ -84,9 +174,7 @@ export function NotificationBell() {
     }
   }, []);
 
-  // SSE connection for real-time updates
   useEffect(() => {
-    // Fetch initial data
     fetchNotifications();
 
     let eventSource: EventSource | null = null;
@@ -96,7 +184,6 @@ export function NotificationBell() {
       api.loadTokens();
       const token = api.getAccessToken();
       if (!token) {
-        // No token yet, poll as fallback
         fallbackInterval = setInterval(fetchNotifications, 5000);
         return;
       }
@@ -108,9 +195,27 @@ export function NotificationBell() {
       eventSource.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (data.connected) return; // Initial connection event
+          if (data.connected) return;
 
-          // Prepend new notification
+          // Task update event (someone claimed or completed a task)
+          if (data._event === "update") {
+            const u = data as TaskUpdateEvent;
+            setNotifications((prev) =>
+              prev.map((n) =>
+                n.id === u.id
+                  ? {
+                      ...n,
+                      taskId: u.taskId,
+                      taskStatus: u.taskStatus,
+                      assignedToId: u.assignedToId,
+                      assignedToName: u.assignedToName,
+                    }
+                  : n
+              )
+            );
+            return;
+          }
+
           setNotifications((prev) => {
             const exists = prev.some((n) => n.id === data.id);
             if (exists) return prev;
@@ -118,7 +223,6 @@ export function NotificationBell() {
             return next;
           });
 
-          // Show popup and play sound
           showPopup(data);
           playNotificationSound();
         } catch {
@@ -127,7 +231,6 @@ export function NotificationBell() {
       };
 
       eventSource.onerror = () => {
-        // SSE disconnected, close and retry after 5s
         eventSource?.close();
         eventSource = null;
         setTimeout(connectSSE, 5000);
@@ -142,18 +245,51 @@ export function NotificationBell() {
     };
   }, [fetchNotifications, playNotificationSound, showPopup]);
 
-  // Close on click outside
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    if (open) document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
-
   const unreadCount = notifications.filter((n) => !readIds.has(n.id)).length;
+
+  const alertOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const n of notifications) {
+      const name = n.alertConfig?.name;
+      if (!name) continue;
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => a[0].localeCompare(b[0], "pt-BR"))
+      .map(([name, count]) => ({ name, count }));
+  }, [notifications]);
+
+  const effectiveCategory = useMemo<CategoryId>(() => {
+    if (visibleCategories.some((c) => c.id === category)) return category;
+    return "todos";
+  }, [visibleCategories, category]);
+
+  const filtered = useMemo(() => {
+    const match =
+      visibleCategories.find((c) => c.id === effectiveCategory)?.match ?? (() => true);
+    return notifications.filter((n) => {
+      if (!match(n)) return false;
+      if (alertFilter !== ALL_ALERTS && n.alertConfig?.name !== alertFilter) return false;
+      return true;
+    });
+  }, [notifications, effectiveCategory, alertFilter, visibleCategories]);
+
+  const countsByCategory = useMemo(() => {
+    const out: Record<CategoryId, number> = {
+      todos: 0,
+      sportbook: 0,
+      cassino: 0,
+      finance: 0,
+      blocks: 0,
+    };
+    for (const n of notifications) {
+      if (readIds.has(n.id)) continue;
+      for (const c of CATEGORIES) {
+        if (c.match(n)) out[c.id] += 1;
+      }
+    }
+    return out;
+  }, [notifications, readIds]);
 
   const saveReadIds = (ids: Set<string>) => {
     setReadIds(ids);
@@ -174,8 +310,22 @@ export function NotificationBell() {
     saveReadIds(next);
   };
 
-  const toggleOpen = () => {
-    setOpen((prev) => !prev);
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(COLLAPSED_STORAGE_KEY, next ? "1" : "0");
+      return next;
+    });
+  };
+
+  const selectCategory = (id: CategoryId) => {
+    setCategory(id);
+    localStorage.setItem(CATEGORY_STORAGE_KEY, id);
+  };
+
+  const selectAlertFilter = (name: string) => {
+    setAlertFilter(name);
+    localStorage.setItem(ALERT_FILTER_STORAGE_KEY, name);
   };
 
   const formatTime = (dateStr: string) => {
@@ -190,7 +340,6 @@ export function NotificationBell() {
   };
 
   const formatMessage = (n: Notification) => {
-    // Group lock notifications
     if (n.source === "group_lock") {
       const groupName =
         (n.data.groupName as string) || n.title.match(/"(.+?)"/)?.[1] || "Grupo";
@@ -219,7 +368,6 @@ export function NotificationBell() {
       );
     }
 
-    // Regular alert notifications
     const userName =
       (n.data.user_name as string) ||
       (n.data.user_username as string) ||
@@ -249,13 +397,19 @@ export function NotificationBell() {
     );
   };
 
+  if (!hasAnyCategory) return null;
+
   return (
-    <div className="relative" ref={panelRef}>
+    <>
       {/* Alert Popup Toast */}
       {popup && (
         <div
-          className="fixed top-4 right-4 z-[100] w-96 animate-in slide-in-from-top-2 fade-in duration-300 rounded-xl border border-border bg-card shadow-2xl overflow-hidden cursor-pointer"
-          onClick={() => { setOpen(true); setPopup(null); }}
+          className="fixed top-4 right-4 z-[100] w-96 animate-in slide-in-from-top-2 fade-in duration-300 rounded-xl border border-border/60 dark:border-white/10 bg-card shadow-2xl dark:shadow-black/60 overflow-hidden cursor-pointer"
+          onClick={() => {
+            setCollapsed(false);
+            localStorage.setItem(COLLAPSED_STORAGE_KEY, "0");
+            setPopup(null);
+          }}
         >
           <div className="h-1 bg-primary" />
           <div className="p-4">
@@ -297,165 +451,253 @@ export function NotificationBell() {
         </div>
       )}
 
-      <Button
-        variant="ghost"
-        size="icon"
-        className="relative"
-        onClick={toggleOpen}
+      {/* Floating Feed Panel */}
+      <div
+        className={`fixed bottom-4 right-4 z-40 rounded-xl border border-border/60 dark:border-white/10 bg-card shadow-2xl dark:shadow-black/60 overflow-hidden flex flex-col ${
+          collapsed ? "w-72" : "w-[400px]"
+        }`}
       >
-        <Bell className="h-5 w-5 text-foreground" />
-        {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
-        )}
-      </Button>
-
-      {open && (
-        <div className="absolute right-0 top-full mt-2 w-96 rounded-xl border border-border bg-card shadow-lg z-50">
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-border px-4 py-3">
-            <h3 className="text-sm font-semibold text-foreground">Notificacoes</h3>
-            <div className="flex items-center gap-2">
-              {notifications.length > 0 && (
-                <button
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                  onClick={markAllRead}
-                >
-                  Marcar como lidas
-                </button>
-              )}
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setOpen(false)}>
-                <X className="h-3.5 w-3.5 text-foreground" />
-              </Button>
-            </div>
-          </div>
-
-          {/* List */}
-          <div className="max-h-96 overflow-y-auto">
-            {notifications.length === 0 ? (
-              <div className="p-8 text-center text-sm text-muted-foreground">
-                Nenhuma notificacao
-              </div>
-            ) : (
-              notifications.map((n) => {
-                const isUnread = !readIds.has(n.id);
-                const isExpanded = expandedId === n.id;
-                return (
-                  <div
-                    key={n.id}
-                    className={`border-b border-border px-4 py-3 transition-colors cursor-pointer hover:bg-muted/50 ${
-                      isUnread
-                        ? "bg-primary/10 border-l-2 border-l-primary"
-                        : "opacity-70"
-                    }`}
-                    onClick={() => {
-                      markAsRead(n.id);
-                      setExpandedId(isExpanded ? null : n.id);
-                    }}
-                  >
-                    <div className="flex items-start gap-3">
-                      {isUnread ? (
-                        <div className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-primary animate-pulse" />
-                      ) : (
-                        <div className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-muted-foreground/30" />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p
-                          className={`text-sm leading-snug ${
-                            isUnread
-                              ? "font-semibold text-foreground"
-                              : "text-muted-foreground"
-                          }`}
-                        >
-                          {formatMessage(n)}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[11px] text-muted-foreground">
-                            {formatTime(n.createdAt)}
-                          </span>
-                          <Badge
-                            variant={isUnread ? "secondary" : "outline"}
-                            className="text-[10px] px-1.5 py-0"
-                          >
-                            {n.alertConfig?.name ?? "Alerta"}
-                          </Badge>
-                          {isUnread && (
-                            <Badge variant="default" className="text-[10px] px-1.5 py-0">
-                              Nova
-                            </Badge>
-                          )}
-                          {n.taskId && n.taskStatus === "done" && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); markAsRead(n.id); setOpen(false); router.push(`/panel/tasks/${n.taskId}/analise`); }}
-                              className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-600 text-white text-[10px] font-semibold hover:bg-emerald-500 transition-colors"
-                            >
-                              <CheckCircle className="h-2.5 w-2.5" /> Concluida
-                            </button>
-                          )}
-                          {n.taskId && n.taskStatus !== "done" && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); markAsRead(n.id); setOpen(false); router.push(`/panel/tasks/${n.taskId}/analise`); }}
-                              className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary text-primary-foreground text-[10px] font-semibold hover:bg-primary/90 transition-colors"
-                            >
-                              <Play className="h-2.5 w-2.5" /> Analisar
-                            </button>
-                          )}
-                          {!n.taskId && (
-                            <span className="text-[11px] text-primary ml-auto">
-                              {isExpanded ? "Fechar" : "Ver detalhes"}
-                            </span>
-                          )}
-                        </div>
-
-                        {isExpanded && (
-                          <div className="mt-2 space-y-2">
-                            <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-                              {Object.entries(n.data)
-                                .filter(([, v]) => v !== "" && v !== null && v !== undefined)
-                                .slice(0, 12)
-                                .map(([key, value]) => (
-                                  <div key={key} className="flex flex-col">
-                                    <span className="text-muted-foreground">{getFieldLabel(key)}</span>
-                                    <span className="font-medium text-foreground truncate">
-                                      {String(value)}
-                                    </span>
-                                  </div>
-                                ))}
-                            </div>
-                            {Object.keys(n.data).length > 12 && (
-                              <p className="text-[10px] text-muted-foreground">
-                                +{Object.keys(n.data).length - 12} campos
-                              </p>
-                            )}
-                            <p className="text-[10px] text-muted-foreground">
-                              {new Date(n.createdAt).toLocaleString("pt-BR")}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
+        {/* Header */}
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          className="flex items-center justify-between px-4 py-3 border-b border-border/60 dark:border-white/5 hover:bg-muted/40 dark:hover:bg-white/[0.03] transition-colors text-left"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-60 animate-ping" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+            </span>
+            <span className="text-sm font-semibold text-foreground truncate">Feed em tempo real</span>
+            {unreadCount > 0 && (
+              <span className="shrink-0 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground shadow-sm ring-2 ring-card">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
             )}
           </div>
-
-          {/* Footer */}
-          {notifications.length > 0 && (
-            <div className="border-t border-border p-2">
-              <Link
-                href="/panel/alerts"
-                onClick={() => setOpen(false)}
-                className="flex items-center justify-center gap-1 rounded-lg py-2 text-xs font-medium text-primary hover:bg-muted"
+          <div className="flex items-center gap-1 shrink-0">
+            {!collapsed && notifications.length > 0 && (
+              <span
+                role="button"
+                tabIndex={0}
+                className="text-[11px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded cursor-pointer"
+                onClick={(e) => { e.stopPropagation(); markAllRead(); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); markAllRead(); } }}
               >
-                Ver todos os alertas
-                <ExternalLink className="h-3 w-3" />
-              </Link>
+                Marcar lidas
+              </span>
+            )}
+            {collapsed ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
+          </div>
+        </button>
+
+        {!collapsed && (
+          <>
+            {/* Category Tabs */}
+            <div className="flex items-center gap-1 overflow-x-auto border-b border-border/60 dark:border-white/5 px-2 py-2 no-scrollbar">
+              {visibleCategories.map((c) => {
+                const active = effectiveCategory === c.id;
+                const count = countsByCategory[c.id];
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => selectCategory(c.id)}
+                    className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                      active
+                        ? "bg-foreground text-background"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    {c.label}
+                    {count > 0 && (
+                      <span
+                        className={`text-[10px] rounded-full px-1.5 min-w-[18px] text-center ${
+                          active
+                            ? "bg-background/20 text-background"
+                            : "bg-muted text-foreground"
+                        }`}
+                      >
+                        {count > 99 ? "99+" : count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-          )}
-        </div>
-      )}
-    </div>
+
+            {/* Alert filter (chips) */}
+            {alertOptions.length >= 2 && (
+              <div className="flex items-center gap-1 overflow-x-auto border-b border-border/60 dark:border-white/5 px-2 py-1.5 no-scrollbar">
+                <button
+                  onClick={() => selectAlertFilter(ALL_ALERTS)}
+                  className={`shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors ${
+                    alertFilter === ALL_ALERTS
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Todos
+                </button>
+                {alertOptions.map((a) => {
+                  const active = alertFilter === a.name;
+                  return (
+                    <button
+                      key={a.name}
+                      onClick={() => selectAlertFilter(a.name)}
+                      className={`shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors ${
+                        active
+                          ? "bg-muted text-foreground"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {a.name}
+                      <span className="text-[10px] text-muted-foreground">({a.count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* List */}
+            <div className="max-h-[420px] overflow-y-auto">
+              {filtered.length === 0 ? (
+                <div className="p-8 text-center text-sm text-muted-foreground">
+                  Nenhuma notificacao
+                </div>
+              ) : (
+                filtered.map((n) => {
+                  const isUnread = !readIds.has(n.id);
+                  const isExpanded = expandedId === n.id;
+                  return (
+                    <div
+                      key={n.id}
+                      className={`border-b border-border/60 dark:border-white/5 px-4 py-3 transition-colors cursor-pointer hover:bg-muted/50 dark:hover:bg-white/[0.03] last:border-b-0 ${
+                        isUnread
+                          ? "bg-primary/10 dark:bg-primary/[0.07] border-l-2 border-l-primary/80"
+                          : "opacity-80"
+                      }`}
+                      onClick={() => {
+                        markAsRead(n.id);
+                        setExpandedId(isExpanded ? null : n.id);
+                      }}
+                    >
+                      <div className="flex items-start gap-3">
+                        {isUnread ? (
+                          <div className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-primary animate-pulse" />
+                        ) : (
+                          <div className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-muted-foreground/30" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p
+                            className={`text-sm leading-snug ${
+                              isUnread
+                                ? "font-semibold text-foreground"
+                                : "text-muted-foreground"
+                            }`}
+                          >
+                            {formatMessage(n)}
+                          </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[11px] text-muted-foreground">
+                              {formatTime(n.createdAt)}
+                            </span>
+                            <Badge
+                              variant={isUnread ? "secondary" : "outline"}
+                              className="text-[10px] px-1.5 py-0"
+                            >
+                              {n.alertConfig?.name ?? "Alerta"}
+                            </Badge>
+                            {isUnread && (
+                              <Badge variant="default" className="text-[10px] px-1.5 py-0">
+                                Nova
+                              </Badge>
+                            )}
+                            {n.taskId && n.taskStatus === "done" && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); markAsRead(n.id); router.push(`/panel/tasks/${n.taskId}/analise`); }}
+                                className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-600 text-white text-[10px] font-semibold hover:bg-emerald-500 transition-colors"
+                              >
+                                <CheckCircle className="h-2.5 w-2.5" /> Concluida
+                              </button>
+                            )}
+                            {n.taskId && n.taskStatus !== "done" && (() => {
+                              const ownedByMe = n.assignedToId && currentUser && n.assignedToId === currentUser.id;
+                              const ownedByOther = n.assignedToId && currentUser && n.assignedToId !== currentUser.id;
+                              if (ownedByOther && n.assignedToName) {
+                                return <AssigneeAvatar name={n.assignedToName} />;
+                              }
+                              return (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); markAsRead(n.id); router.push(`/panel/tasks/${n.taskId}/analise`); }}
+                                  className="ml-auto flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary text-primary-foreground text-[10px] font-semibold hover:bg-primary/90 transition-colors"
+                                >
+                                  <Play className="h-2.5 w-2.5" /> {ownedByMe ? "Continuar" : "Analisar"}
+                                </button>
+                              );
+                            })()}
+                            {!n.taskId && (
+                              <span className="text-[11px] text-primary ml-auto">
+                                {isExpanded ? "Fechar" : "Ver detalhes"}
+                              </span>
+                            )}
+                          </div>
+
+                          {isExpanded && (
+                            <div className="mt-2 space-y-2">
+                              <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                                {Object.entries(n.data)
+                                  .filter(([, v]) => v !== "" && v !== null && v !== undefined)
+                                  .slice(0, 12)
+                                  .map(([key, value]) => (
+                                    <div key={key} className="flex flex-col">
+                                      <span className="text-muted-foreground">{getFieldLabel(key)}</span>
+                                      <span className="font-medium text-foreground truncate">
+                                        {String(value)}
+                                      </span>
+                                    </div>
+                                  ))}
+                              </div>
+                              {Object.keys(n.data).length > 12 && (
+                                <p className="text-[10px] text-muted-foreground">
+                                  +{Object.keys(n.data).length - 12} campos
+                                </p>
+                              )}
+                              <p className="text-[10px] text-muted-foreground">
+                                {new Date(n.createdAt).toLocaleString("pt-BR")}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            {notifications.length > 0 && (
+              <div className="border-t border-border/60 dark:border-white/5 p-2">
+                <Link
+                  href="/panel/alerts"
+                  className="flex items-center justify-center gap-1 rounded-lg py-2 text-xs font-medium text-primary hover:bg-muted dark:hover:bg-white/[0.03]"
+                >
+                  Ver todos os alertas
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </>
   );
+}
+
+export function NotificationPanel() {
+  return <NotificationBell />;
 }

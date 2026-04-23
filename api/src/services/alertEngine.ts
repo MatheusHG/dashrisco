@@ -8,18 +8,33 @@ type AlertConfigFull = AlertConfig & {
   queryConditions: AlertQueryCondition[];
 };
 
-const EARLY_PAYOUT_ODDS_TYPES = new Set(["HOME_EP", "AWAY_EP", "DRAW_EP"]);
+const NGX_EARLY_PAYOUT_TYPES = new Set(["HOME_EP", "AWAY_EP", "DRAW_EP"]);
+const RADAR_EARLY_PAYOUT_TYPES = new Set(["EP_1X2"]);
 
-function hasEarlyPayoutEvent(data: Record<string, unknown>): boolean {
+function hasEarlyPayoutEvent(
+  data: Record<string, unknown>,
+  providers: string[]
+): boolean {
+  if (providers.length === 0) return false;
+  const accepted = new Set<string>();
+  if (providers.includes("NGX")) NGX_EARLY_PAYOUT_TYPES.forEach((t) => accepted.add(t));
+  if (providers.includes("RADAR")) RADAR_EARLY_PAYOUT_TYPES.forEach((t) => accepted.add(t));
+
   const events = data.bet_events;
   if (!Array.isArray(events)) return false;
   for (const ev of events) {
     const oddsType = (ev as { odds_type?: unknown } | null)?.odds_type;
-    if (typeof oddsType === "string" && EARLY_PAYOUT_ODDS_TYPES.has(oddsType)) {
+    if (typeof oddsType === "string" && accepted.has(oddsType)) {
       return true;
     }
   }
   return false;
+}
+
+function parseEarlyPayoutProviders(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return ["NGX"];
+  const out = raw.filter((p): p is string => typeof p === "string" && (p === "NGX" || p === "RADAR"));
+  return out.length > 0 ? out : ["NGX"];
 }
 
 /**
@@ -69,7 +84,7 @@ export class AlertEngine {
         if (
           config.requireEarlyPayout &&
           (config.webhookType === "SPORT_BET" || config.webhookType === "SPORT_PRIZE") &&
-          !hasEarlyPayoutEvent(normalizedData)
+          !hasEarlyPayoutEvent(normalizedData, parseEarlyPayoutProviders(config.earlyPayoutProviders))
         ) {
           continue;
         }

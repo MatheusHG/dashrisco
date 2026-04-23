@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authorize } from "../middlewares/auth";
 import { createLog } from "../middlewares/logger";
+import { invalidateRole } from "../services/permissionCache";
 
 const createRoleSchema = z.object({
   name: z.string().min(2),
@@ -93,6 +94,8 @@ export async function roleRoutes(app: FastifyInstance) {
         data,
         include: { permissions: { select: { id: true, action: true } } },
       });
+
+      invalidateRole(id);
 
       await createLog(app.prisma, request, {
         action: "role.updated",

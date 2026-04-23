@@ -1,4 +1,5 @@
 import { FastifyRequest, FastifyReply } from "fastify";
+import { getResolvedUser } from "../services/permissionCache";
 
 export async function authenticate(
   request: FastifyRequest,
@@ -9,9 +10,22 @@ export async function authenticate(
       id: string;
       email: string;
       roleId: string;
-      permissions: string[];
     }>();
-    request.currentUser = payload;
+
+    // Fresh permissions (via TTL cache) — mudanças em role refletem em até 10s
+    // ou instantaneamente quando PUT /roles ou /users invalida o cache.
+    const user = await getResolvedUser(request.server.prisma, payload.id);
+
+    if (!user || !user.active) {
+      return reply.status(401).send({ error: "Usuário inativo ou não encontrado" });
+    }
+
+    request.currentUser = {
+      id: user.id,
+      email: user.email,
+      roleId: user.roleId,
+      permissions: user.permissions,
+    };
   } catch {
     return reply.status(401).send({ error: "Token inválido ou expirado" });
   }

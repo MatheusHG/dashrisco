@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +26,7 @@ interface UserData {
 export default function EditUserPage() {
   const params = useParams();
   const router = useRouter();
+  const { user: currentUser } = useAuth();
   const userId = params.id as string;
 
   const [roles, setRoles] = useState<Role[]>([]);
@@ -74,6 +76,11 @@ export default function EditUserPage() {
         method: "PUT",
         body: JSON.stringify({ name, email, roleId, active }),
       });
+      // Se o admin editou a própria role, recarrega para atualizar AuthContext.
+      if (currentUser?.id === userId) {
+        window.location.reload();
+        return;
+      }
       setSuccessMsg("Usuario atualizado com sucesso");
       setTimeout(() => setSuccessMsg(""), 3000);
     } catch (err) {

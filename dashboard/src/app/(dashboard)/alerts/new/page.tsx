@@ -71,6 +71,7 @@ export default function NewAlertPage() {
   const [filters, setFilters] = useState<FilterItem[]>([]);
   const [cooldownMinutes, setCooldownMinutes] = useState<number | null>(null);
   const [requireEarlyPayout, setRequireEarlyPayout] = useState(false);
+  const [earlyPayoutProviders, setEarlyPayoutProviders] = useState<("NGX" | "RADAR")[]>(["NGX"]);
   const [queryEnabled, setQueryEnabled] = useState(false);
   const [clickhouseQuery, setClickhouseQuery] = useState("");
   const [queryConditions, setQueryConditions] = useState<QueryCondition[]>([]);
@@ -113,6 +114,7 @@ export default function NewAlertPage() {
           filters: filters.map((f, i) => ({ field: f.field, operator: f.operator, value: f.value, logicGate: i < filters.length - 1 ? f.logicGate || "AND" : null, order: i })),
           cooldownMinutes: cooldownMinutes && cooldownMinutes > 0 ? cooldownMinutes : null,
           requireEarlyPayout: (webhookType === "SPORT_BET" || webhookType === "SPORT_PRIZE") ? requireEarlyPayout : false,
+          earlyPayoutProviders: earlyPayoutProviders.length > 0 ? earlyPayoutProviders : ["NGX"],
           queryEnabled, clickhouseQuery: queryEnabled ? clickhouseQuery : null,
           queryConditions: queryEnabled ? queryConditions.map((c, i) => ({ field: c.field, operator: c.operator, value: c.value, logicGate: i < queryConditions.length - 1 ? c.logicGate || "AND" : null, order: i })) : [],
         }),
@@ -427,13 +429,38 @@ export default function NewAlertPage() {
               )}
 
               {(webhookType === "SPORT_BET" || webhookType === "SPORT_PRIZE") && (
-                <label className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer transition-all ${requireEarlyPayout ? "border-primary bg-primary/10" : "border-border/50 hover:bg-muted/50"}`}>
-                  <input type="checkbox" checked={requireEarlyPayout} onChange={(e) => setRequireEarlyPayout(e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">Pagamento Antecipado</p>
-                    <p className="text-[11px] text-muted-foreground">Só dispara se a aposta tiver algum evento com odds_type em HOME_EP, AWAY_EP ou DRAW_EP.</p>
-                  </div>
-                </label>
+                <div className={`rounded-xl border p-4 space-y-3 transition-all ${requireEarlyPayout ? "border-primary bg-primary/10" : "border-border/50"}`}>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input type="checkbox" checked={requireEarlyPayout} onChange={(e) => setRequireEarlyPayout(e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Pagamento Antecipado</p>
+                      <p className="text-[11px] text-muted-foreground">Só dispara se a aposta tiver algum evento de pagamento antecipado dos provedores selecionados.</p>
+                    </div>
+                  </label>
+                  {requireEarlyPayout && (
+                    <div className="flex flex-wrap gap-2 pl-7">
+                      {(["NGX", "RADAR"] as const).map((p) => {
+                        const active = earlyPayoutProviders.includes(p);
+                        return (
+                          <button
+                            type="button"
+                            key={p}
+                            onClick={() => setEarlyPayoutProviders((prev) => {
+                              if (prev.includes(p)) {
+                                const next = prev.filter((x) => x !== p);
+                                return next.length === 0 ? prev : next;
+                              }
+                              return [...prev, p];
+                            })}
+                            className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${active ? "border-primary bg-primary text-primary-foreground" : "border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
+                          >
+                            {p}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Cooldown */}

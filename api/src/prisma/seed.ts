@@ -14,7 +14,20 @@ const PERMISSIONS = [
   "logs:read",
   "panel:read",
   "settings:manage",
+  "category:sportbook",
+  "category:cassino",
+  "category:finance",
+  "category:blocks",
 ];
+
+// Permissions that should NOT be auto-granted to the admin role.
+// They must be granted manually per role so notification visibility is explicit.
+const ADMIN_EXCLUDED_PERMISSIONS = new Set([
+  "category:sportbook",
+  "category:cassino",
+  "category:finance",
+  "category:blocks",
+]);
 
 async function main() {
   console.log("Seeding database...");
@@ -32,19 +45,23 @@ async function main() {
 
   console.log(`Created ${permissions.length} permissions`);
 
-  // Create admin role with all permissions
+  // Create admin role with all permissions EXCEPT category:* (manual grant)
+  const adminDefaultPermissions = permissions.filter(
+    (p) => !ADMIN_EXCLUDED_PERMISSIONS.has(p.action)
+  );
   const adminRole = await prisma.role.upsert({
     where: { name: "admin" },
     update: {
+      // Keep category:* as-is on existing admin role; only reconcile the rest
       permissions: {
-        set: permissions.map((p) => ({ id: p.id })),
+        connect: adminDefaultPermissions.map((p) => ({ id: p.id })),
       },
     },
     create: {
       name: "admin",
       description: "Administrador com acesso total",
       permissions: {
-        connect: permissions.map((p) => ({ id: p.id })),
+        connect: adminDefaultPermissions.map((p) => ({ id: p.id })),
       },
     },
   });
@@ -65,8 +82,9 @@ async function main() {
   const operatorRole = await prisma.role.upsert({
     where: { name: "operador" },
     update: {
+      // connect (não set) para preservar grants manuais como category:*
       permissions: {
-        set: operatorPermissions.map((p) => ({ id: p.id })),
+        connect: operatorPermissions.map((p) => ({ id: p.id })),
       },
     },
     create: {
@@ -88,8 +106,9 @@ async function main() {
   const viewerRole = await prisma.role.upsert({
     where: { name: "visualizador" },
     update: {
+      // connect (não set) para preservar grants manuais como category:*
       permissions: {
-        set: viewerPermissions.map((p) => ({ id: p.id })),
+        connect: viewerPermissions.map((p) => ({ id: p.id })),
       },
     },
     create: {

@@ -3,6 +3,12 @@ import { z } from "zod";
 import { authorize, authenticate } from "../middlewares/auth";
 import { createLog } from "../middlewares/logger";
 import { eventBus } from "../services/eventBus";
+import {
+  allowedCategoriesFromPermissions,
+  allowedWebhookTypes,
+  getCategoryForAlert,
+} from "../constants/categories";
+import { getResolvedUser } from "../services/permissionCache";
 import fs from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
@@ -16,19 +22,104 @@ const updateTaskSchema = z.object({
 });
 
 // SSE clients pool
-const sseClients = new Set<{ res: any; alive: boolean }>();
+type SseClient = {
+  res: any;
+  alive: boolean;
+  userId: string;
+  prisma: import("@prisma/client").PrismaClient;
+};
+const sseClients = new Set<SseClient>();
 
-// Broadcast new alerts to all SSE clients
+async function clientCanSeeAlert(
+  client: SseClient,
+  alert: { webhookType?: string | null; source?: string | null }
+): Promise<boolean> {
+  const cat = getCategoryForAlert(alert.webhookType, alert.source);
+  if (!cat) return false;
+  const user = await getResolvedUser(client.prisma, client.userId);
+  if (!user || !user.active) return false;
+  const allowed = allowedCategoriesFromPermissions(user.permissions);
+  return allowed.includes(cat);
+}
+
+async function broadcast(
+  alert: { webhookType?: string | null; source?: string | null },
+  data: string
+) {
+  await Promise.all(
+    Array.from(sseClients).map(async (client) => {
+      if (!(await clientCanSeeAlert(client, alert))) return;
+      try {
+        client.res.write(data);
+      } catch {
+        client.alive = false;
+      }
+    })
+  );
+}
+
+// Broadcast new alerts to all SSE clients (filtered by category permissions)
 eventBus.on("panel-alert", (alert: any) => {
-  const data = `data: ${JSON.stringify(alert)}\n\n`;
-  for (const client of sseClients) {
-    try {
-      client.res.write(data);
-    } catch {
-      client.alive = false;
-    }
-  }
+  void broadcast(alert, `data: ${JSON.stringify(alert)}\n\n`);
 });
+
+// Broadcast task updates (assignment, status). Uses the alert's category permission.
+eventBus.on("panel-alert-updated", (payload: any) => {
+  void broadcast(payload, `data: ${JSON.stringify({ ...payload, _event: "update" })}\n\n`);
+});
+
+function requireTaskCategory(app: FastifyInstance) {
+  return async (
+    request: FastifyRequest<{ Params: { id: string } }>,
+    reply: FastifyReply
+  ) => {
+    const task = await app.prisma.panelTask.findUnique({
+      where: { id: request.params.id },
+      select: { panelAlert: { select: { webhookType: true, source: true } } },
+    });
+    if (!task) {
+      return reply.status(404).send({ error: "Task nao encontrada" });
+    }
+    const cat = getCategoryForAlert(
+      task.panelAlert?.webhookType,
+      task.panelAlert?.source
+    );
+    const cats = allowedCategoriesFromPermissions(
+      request.currentUser?.permissions ?? []
+    );
+    if (!cat || !cats.includes(cat)) {
+      return reply.status(403).send({ error: "Sem permissao para esta categoria" });
+    }
+  };
+}
+
+async function emitTaskUpdate(
+  app: FastifyInstance,
+  task: { id: string; panelAlertId: string | null; status: string; assignedTo: string | null }
+) {
+  if (!task.panelAlertId) return;
+  const [panelAlert, assignedUser] = await Promise.all([
+    app.prisma.panelAlert.findUnique({
+      where: { id: task.panelAlertId },
+      select: { webhookType: true, source: true },
+    }),
+    task.assignedTo
+      ? app.prisma.user.findUnique({
+          where: { id: task.assignedTo },
+          select: { name: true },
+        })
+      : Promise.resolve(null),
+  ]);
+  eventBus.emit("panel-alert-updated", {
+    id: task.panelAlertId,
+    taskId: task.id,
+    taskStatus: task.status,
+    assignedToId: task.assignedTo,
+    assignedToName: assignedUser?.name ?? null,
+    webhookType: panelAlert?.webhookType ?? null,
+    source: panelAlert?.source ?? null,
+  });
+}
 
 export async function panelRoutes(app: FastifyInstance) {
   // ==================
@@ -37,9 +128,11 @@ export async function panelRoutes(app: FastifyInstance) {
   app.get("/notifications/stream", async (request: FastifyRequest, reply: FastifyReply) => {
     // Authenticate via query param (EventSource doesn't support headers)
     const token = (request.query as any).token;
+    let userId: string | null = null;
     if (token) {
       try {
-        await app.jwt.verify(token);
+        const payload = (await app.jwt.verify(token)) as { id?: string };
+        userId = payload.id ?? null;
       } catch {
         return reply.status(401).send({ error: "Invalid token" });
       }
@@ -48,9 +141,18 @@ export async function panelRoutes(app: FastifyInstance) {
       try {
         await authenticate(request, reply);
         if (reply.sent) return;
+        userId = request.currentUser?.id ?? null;
       } catch {
         return reply.status(401).send({ error: "Unauthorized" });
       }
+    }
+
+    if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+
+    // Validar active/existência no connect (cache também aquece aqui)
+    const user = await getResolvedUser(app.prisma, userId);
+    if (!user || !user.active) {
+      return reply.status(401).send({ error: "Usuario inativo" });
     }
 
     const raw = reply.raw;
@@ -64,7 +166,7 @@ export async function panelRoutes(app: FastifyInstance) {
     // Send initial connected event
     raw.write("data: {\"connected\":true}\n\n");
 
-    const client = { res: raw, alive: true };
+    const client: SseClient = { res: raw, alive: true, userId, prisma: app.prisma };
     sseClients.add(client);
 
     // Heartbeat every 30s
@@ -101,25 +203,54 @@ export async function panelRoutes(app: FastifyInstance) {
         ? { createdAt: { gt: new Date(query.since) } }
         : {};
 
-      // Alerts with publishPanel=true and mode=ALERT, OR system alerts (group_lock)
-      // WATCH mode alerts are excluded from notifications
+      const cats = allowedCategoriesFromPermissions(
+        request.currentUser?.permissions ?? []
+      );
+      if (cats.length === 0) return [];
+
+      const webhookTypes = allowedWebhookTypes(cats);
+      const includeBlocks = cats.includes("blocks");
+
+      const categoryConditions: Record<string, unknown>[] = [];
+      if (webhookTypes.length > 0) {
+        categoryConditions.push({
+          alertConfig: { publishPanel: true },
+          mode: "ALERT",
+          webhookType: { in: webhookTypes },
+        });
+      }
+      if (includeBlocks) {
+        categoryConditions.push({ source: "group_lock" });
+      }
+
       const alerts = await app.prisma.panelAlert.findMany({
         where: {
           ...dateFilter,
-          OR: [
-            { alertConfig: { publishPanel: true }, mode: "ALERT" },
-            { source: "group_lock" },
-          ],
+          OR: categoryConditions,
         },
         orderBy: { createdAt: "desc" },
         take: 20,
         include: {
           alertConfig: { select: { name: true } },
-          task: { select: { id: true, status: true } },
+          task: {
+            select: {
+              id: true,
+              status: true,
+              assignedTo: true,
+              assignedUser: { select: { id: true, name: true } },
+            },
+          },
         },
       });
 
-      return alerts.map((a) => ({ ...a, taskId: a.task?.id ?? null, taskStatus: a.task?.status ?? null, task: undefined }));
+      return alerts.map((a) => ({
+        ...a,
+        taskId: a.task?.id ?? null,
+        taskStatus: a.task?.status ?? null,
+        assignedToId: a.task?.assignedTo ?? null,
+        assignedToName: a.task?.assignedUser?.name ?? null,
+        task: undefined,
+      }));
     }
   );
 
@@ -143,10 +274,29 @@ export async function panelRoutes(app: FastifyInstance) {
       const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
       const skip = (page - 1) * limit;
 
+      const cats = allowedCategoriesFromPermissions(
+        request.currentUser?.permissions ?? []
+      );
+      if (cats.length === 0) {
+        return { alerts: [], total: 0, page, limit, totalPages: 0 };
+      }
+      const permittedWebhookTypes = allowedWebhookTypes(cats);
+      const includeBlocks = cats.includes("blocks");
+
       const where: Record<string, unknown> = {};
       if (query.webhookType) where.webhookType = query.webhookType;
       if (query.alertConfigId) where.alertConfigId = query.alertConfigId;
       if (query.mode) where.mode = query.mode;
+
+      // Apply category permission gate
+      const catConditions: Record<string, unknown>[] = [];
+      if (permittedWebhookTypes.length > 0) {
+        catConditions.push({ webhookType: { in: permittedWebhookTypes } });
+      }
+      if (includeBlocks) {
+        catConditions.push({ source: "group_lock" });
+      }
+      where.AND = [{ OR: catConditions }];
       // Fila de trabalho: só alertas sem task concluída/em andamento
       if (query.queue === "pending") {
         where.OR = [
@@ -215,11 +365,31 @@ export async function panelRoutes(app: FastifyInstance) {
       const limit = Math.min(200, Math.max(1, Number(query.limit) || 20));
       const skip = (page - 1) * limit;
 
+      const cats = allowedCategoriesFromPermissions(
+        request.currentUser?.permissions ?? []
+      );
+      if (cats.length === 0) {
+        return { tasks: [], total: 0, page, limit, totalPages: 0, users: [] };
+      }
+      const permittedWebhookTypes = allowedWebhookTypes(cats);
+      const includeBlocks = cats.includes("blocks");
+
       const where: Record<string, unknown> = {};
       if (query.status) where.status = query.status;
       if (query.completedBy) where.completedBy = query.completedBy;
       if (query.assignedTo) where.assignedTo = query.assignedTo;
       if (query.alertConfigId) where.alertConfigId = query.alertConfigId;
+
+      // Category permission gate — restrict by linked panelAlert.webhookType / source
+      const panelAlertConditions: Record<string, unknown>[] = [];
+      if (permittedWebhookTypes.length > 0) {
+        panelAlertConditions.push({ webhookType: { in: permittedWebhookTypes } });
+      }
+      if (includeBlocks) {
+        panelAlertConditions.push({ source: "group_lock" });
+      }
+      where.panelAlert = { OR: panelAlertConditions };
+
       if (query.webhookType) {
         const configsOfType = await app.prisma.alertConfig.findMany({
           where: { webhookType: query.webhookType as any },
@@ -269,7 +439,7 @@ export async function panelRoutes(app: FastifyInstance) {
   // Update task status
   app.put<{ Params: { id: string } }>(
     "/tasks/:id",
-    { preHandler: authorize("panel:read") },
+    { preHandler: [authorize("panel:read"), requireTaskCategory(app)] },
     async (request) => {
       const { id } = request.params;
       const body = updateTaskSchema.parse(request.body);
@@ -379,6 +549,12 @@ export async function panelRoutes(app: FastifyInstance) {
         });
       }
 
+      const statusChanged = updateData.status !== undefined && updateData.status !== current.status;
+      const assignedChanged = updateData.assignedTo !== undefined && updateData.assignedTo !== current.assignedTo;
+      if (statusChanged || assignedChanged) {
+        await emitTaskUpdate(app, task);
+      }
+
       return task;
     }
   );
@@ -389,7 +565,7 @@ export async function panelRoutes(app: FastifyInstance) {
 
   app.get<{ Params: { id: string } }>(
     "/tasks/:id",
-    { preHandler: authorize("panel:read") },
+    { preHandler: [authorize("panel:read"), requireTaskCategory(app)] },
     async (request, reply) => {
       const task = await app.prisma.panelTask.findUnique({
         where: { id: request.params.id },
@@ -438,7 +614,7 @@ export async function panelRoutes(app: FastifyInstance) {
 
   app.get<{ Params: { id: string } }>(
     "/tasks/:id/history",
-    { preHandler: authorize("panel:read") },
+    { preHandler: [authorize("panel:read"), requireTaskCategory(app)] },
     async (request) => {
       const { id } = request.params;
 
@@ -465,7 +641,7 @@ export async function panelRoutes(app: FastifyInstance) {
   // Start analysis - auto-assign + set in_progress
   app.post<{ Params: { id: string } }>(
     "/tasks/:id/start-analysis",
-    { preHandler: authorize("panel:read") },
+    { preHandler: [authorize("panel:read"), requireTaskCategory(app)] },
     async (request, reply) => {
       const { id } = request.params;
       const task = await app.prisma.panelTask.findUnique({ where: { id } });
@@ -495,6 +671,8 @@ export async function panelRoutes(app: FastifyInstance) {
         entityId: id,
       });
 
+      await emitTaskUpdate(app, updated);
+
       return updated;
     }
   );
@@ -502,7 +680,7 @@ export async function panelRoutes(app: FastifyInstance) {
   // Complete analysis - validate checklist + save parecer + done
   app.post<{ Params: { id: string } }>(
     "/tasks/:id/complete-analysis",
-    { preHandler: authorize("panel:read") },
+    { preHandler: [authorize("panel:read"), requireTaskCategory(app)] },
     async (request, reply) => {
       const { id } = request.params;
       const body = request.body as { parecer: string };
@@ -538,6 +716,8 @@ export async function panelRoutes(app: FastifyInstance) {
         details: { parecer: body.parecer.trim().slice(0, 200) },
       });
 
+      await emitTaskUpdate(app, updated);
+
       return updated;
     }
   );
@@ -548,7 +728,7 @@ export async function panelRoutes(app: FastifyInstance) {
 
   app.patch<{ Params: { id: string } }>(
     "/tasks/:id/checklist",
-    { preHandler: authorize("panel:read") },
+    { preHandler: [authorize("panel:read"), requireTaskCategory(app)] },
     async (request, reply) => {
       const { id } = request.params;
       const body = request.body as { index: number; checked: boolean };
@@ -597,7 +777,7 @@ export async function panelRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string } }>(
     "/tasks/:id/comments",
-    { preHandler: authorize("panel:read") },
+    { preHandler: [authorize("panel:read"), requireTaskCategory(app)] },
     async (request, reply) => {
       const { id } = request.params;
 
@@ -668,7 +848,7 @@ export async function panelRoutes(app: FastifyInstance) {
 
   app.delete<{ Params: { id: string; commentId: string } }>(
     "/tasks/:id/comments/:commentId",
-    { preHandler: authorize("panel:read") },
+    { preHandler: [authorize("panel:read"), requireTaskCategory(app)] },
     async (request) => {
       const { commentId } = request.params;
       await app.prisma.taskComment.delete({ where: { id: commentId } });
@@ -691,7 +871,7 @@ export async function panelRoutes(app: FastifyInstance) {
   // Upload attachment
   app.post<{ Params: { id: string } }>(
     "/tasks/:id/attachments",
-    { preHandler: authorize("panel:read") },
+    { preHandler: [authorize("panel:read"), requireTaskCategory(app)] },
     async (request, reply) => {
       const { id } = request.params;
       const file = await request.file();
@@ -729,7 +909,7 @@ export async function panelRoutes(app: FastifyInstance) {
   // List attachments
   app.get<{ Params: { id: string } }>(
     "/tasks/:id/attachments",
-    { preHandler: authorize("panel:read") },
+    { preHandler: [authorize("panel:read"), requireTaskCategory(app)] },
     async (request) => {
       const attachments = await app.prisma.taskAttachment.findMany({
         where: { taskId: request.params.id },
@@ -742,7 +922,7 @@ export async function panelRoutes(app: FastifyInstance) {
   // Delete attachment
   app.delete<{ Params: { id: string; attachmentId: string } }>(
     "/tasks/:id/attachments/:attachmentId",
-    { preHandler: authorize("panel:read") },
+    { preHandler: [authorize("panel:read"), requireTaskCategory(app)] },
     async (request, reply) => {
       const { attachmentId } = request.params;
       const attachment = await app.prisma.taskAttachment.findUnique({ where: { id: attachmentId } });
