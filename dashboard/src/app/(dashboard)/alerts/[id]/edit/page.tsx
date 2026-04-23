@@ -675,6 +675,13 @@ export default function EditAlertPage() {
                   </div>
                 )}
 
+                {requireEarlyPayout && (webhookType === "SPORT_BET" || webhookType === "SPORT_PRIZE") && (
+                  <div className="rounded-xl bg-primary/5 border border-primary/20 p-3 flex items-center gap-2">
+                    <Zap className="h-3.5 w-3.5 text-primary" />
+                    <p className="text-sm text-foreground"><strong>Pagamento Antecipado</strong></p>
+                  </div>
+                )}
+
                 {queryEnabled && (
                   <div className="rounded-xl bg-violet-500/5 border border-violet-500/20 p-3 space-y-2">
                     <div className="flex items-center gap-1.5"><Database className="h-3.5 w-3.5 text-violet-500" /><p className="text-[10px] uppercase tracking-wider text-violet-600 dark:text-violet-400 font-semibold">Consulta ClickHouse</p></div>

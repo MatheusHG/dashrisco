@@ -70,6 +70,7 @@ interface AlertConfig {
   createClickupTask: boolean;
   clickupListId: string | null;
   selectedFields: string[];
+  requireEarlyPayout: boolean;
   filters: AlertFilter[];
   createdAt: string;
   updatedAt: string;
@@ -307,6 +308,12 @@ export default function AlertDetailPage() {
             <GitBranch className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm font-medium">Condicoes do Alerta</p>
           </div>
+          {alert.requireEarlyPayout && (alert.webhookType === "SPORT_BET" || alert.webhookType === "SPORT_PRIZE") && (
+            <div className="mb-3 rounded-lg bg-primary/5 border border-primary/20 p-3 flex items-center gap-2">
+              <Zap className="h-3.5 w-3.5 text-primary" />
+              <p className="text-sm text-foreground"><strong>Pagamento Antecipado</strong></p>
+            </div>
+          )}
           {alert.filters.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Sem filtros — todos os eventos do tipo{" "}
