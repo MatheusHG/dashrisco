@@ -142,6 +142,90 @@ export function NotificationBell() {
     popupTimerRef.current = setTimeout(() => setPopup(null), 6000);
   }, []);
 
+  // Pede permissao de notificacao nativa uma vez
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!("Notification" in window)) return;
+    if (window.Notification.permission === "default") {
+      window.Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
+  const buildPlainMessage = useCallback((n: Notification): string => {
+    if (n.source === "group_lock") {
+      const groupName =
+        (n.data.groupName as string) || n.title.match(/"(.+?)"/)?.[1] || "Grupo";
+      const isUnlock = n.title.toLowerCase().includes("desbloqueado");
+      const triggerName = (n.data.triggerUserName as string) || (n.data.user_name as string) || "";
+      const betValue = n.data.bet_value
+        ? ` R$ ${Number(n.data.bet_value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+        : "";
+      if (isUnlock) {
+        const elapsed = n.data.elapsedSec ? ` apos ${n.data.elapsedSec}s` : "";
+        return `${groupName} desbloqueado${elapsed}.`;
+      }
+      return `${groupName} bloqueado - ${triggerName} apostou${betValue}.`;
+    }
+    const userName =
+      (n.data.user_name as string) ||
+      (n.data.user_username as string) ||
+      "Usuario";
+    const action = webhookTypeLabels[n.webhookType] || "disparou alerta";
+    const fmt = (v: unknown) =>
+      `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+    const val = (() => {
+      const d = n.data;
+      switch (n.webhookType) {
+        case "WITHDRAWAL_REQUEST":
+        case "WITHDRAWAL_CONFIRMATION":
+          return d.withdraw_value;
+        case "DEPOSIT_REQUEST":
+        case "DEPOSIT":
+          return d.deposit_value;
+        case "SPORT_BET":
+        case "CASINO_BET":
+          return d.bet_value;
+        case "SPORT_PRIZE":
+          return d.bet_return_value;
+        case "CASINO_PRIZE":
+          return d.prize_value;
+        case "CASINO_REFUND":
+          return d.refunded_value;
+        default:
+          return undefined;
+      }
+    })();
+    const detail = val !== undefined && val !== null && val !== "" ? ` de ${fmt(val)}` : "";
+    return `${userName} ${action}${detail}.`;
+  }, []);
+
+  const showNativeNotification = useCallback(
+    (notification: Notification) => {
+      if (typeof window === "undefined") return;
+      if (!("Notification" in window)) return;
+      if (window.Notification.permission !== "granted") return;
+      try {
+        const title = notification.alertConfig?.name ?? "Alerta";
+        const body = buildPlainMessage(notification);
+        const n = new window.Notification(title, {
+          body,
+          icon: "/favicon.ico",
+          tag: notification.id,
+        });
+        n.onclick = () => {
+          window.focus();
+          if (notification.taskId) {
+            router.push(`/panel/tasks/${notification.taskId}/analise`);
+          }
+          n.close();
+        };
+      } catch {
+        // ignore
+      }
+    },
+    [buildPlainMessage, router]
+  );
+
   const playNotificationSound = useCallback(() => {
     try {
       const ctx = new AudioContext();
@@ -225,6 +309,9 @@ export function NotificationBell() {
 
           showPopup(data);
           playNotificationSound();
+          if (typeof document !== "undefined" && document.hidden) {
+            showNativeNotification(data);
+          }
         } catch {
           // ignore parse errors
         }
@@ -243,7 +330,7 @@ export function NotificationBell() {
       eventSource?.close();
       if (fallbackInterval) clearInterval(fallbackInterval);
     };
-  }, [fetchNotifications, playNotificationSound, showPopup]);
+  }, [fetchNotifications, playNotificationSound, showPopup, showNativeNotification]);
 
   const unreadCount = notifications.filter((n) => !readIds.has(n.id)).length;
 
