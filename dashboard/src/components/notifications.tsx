@@ -117,6 +117,9 @@ export function NotificationBell() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [popup, setPopup] = useState<Notification | null>(null);
   const popupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [notifPermission, setNotifPermission] = useState<
+    NotificationPermission | "unsupported"
+  >("default");
 
   // Load persisted state
   useEffect(() => {
@@ -142,12 +145,27 @@ export function NotificationBell() {
     popupTimerRef.current = setTimeout(() => setPopup(null), 6000);
   }, []);
 
-  // Pede permissao de notificacao nativa uma vez
+  // Inicializa estado da permissao de notificacao nativa
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!("Notification" in window)) return;
-    if (window.Notification.permission === "default") {
-      window.Notification.requestPermission().catch(() => {});
+    if (!("Notification" in window)) {
+      setNotifPermission("unsupported");
+      return;
+    }
+    setNotifPermission(window.Notification.permission);
+  }, []);
+
+  const requestNotifPermission = useCallback(async () => {
+    if (typeof window === "undefined") return;
+    if (!("Notification" in window)) {
+      setNotifPermission("unsupported");
+      return;
+    }
+    try {
+      const result = await window.Notification.requestPermission();
+      setNotifPermission(result);
+    } catch {
+      // ignore
     }
   }, []);
 
@@ -486,8 +504,57 @@ export function NotificationBell() {
 
   if (!hasAnyCategory) return null;
 
+  const needsPermissionPrompt =
+    notifPermission === "default" || notifPermission === "denied";
+
   return (
     <>
+      {/* Permission request modal */}
+      {needsPermissionPrompt && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl border border-border/60 dark:border-white/10 bg-card shadow-2xl dark:shadow-black/60 overflow-hidden">
+            <div className="h-1 bg-primary" />
+            <div className="p-6">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                  <Bell className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-base font-semibold text-foreground">
+                    Ativar notificacoes
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Para receber os alertas em tempo real mesmo com o navegador em
+                    outra aba, voce precisa permitir as notificacoes do navegador.
+                  </p>
+                  {notifPermission === "denied" && (
+                    <div className="mt-3 rounded-lg bg-muted/60 dark:bg-white/[0.03] p-3 text-xs text-muted-foreground">
+                      <p className="font-semibold text-foreground mb-1">
+                        Notificacoes bloqueadas
+                      </p>
+                      <p>
+                        Clique no cadeado ao lado do endereco do site, abra
+                        &quot;Configuracoes do site&quot; e altere
+                        &quot;Notificacoes&quot; para <strong>Permitir</strong>.
+                        Depois recarregue a pagina.
+                      </p>
+                    </div>
+                  )}
+                  {notifPermission === "default" && (
+                    <Button
+                      onClick={requestNotifPermission}
+                      className="mt-4 w-full"
+                    >
+                      Permitir notificacoes
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Alert Popup Toast */}
       {popup && (
         <div
