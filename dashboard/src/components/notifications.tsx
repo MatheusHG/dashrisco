@@ -145,7 +145,7 @@ export function NotificationBell() {
     popupTimerRef.current = setTimeout(() => setPopup(null), 6000);
   }, []);
 
-  // Inicializa estado da permissao de notificacao nativa
+  // Inicializa estado da permissão de notificação nativa
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!("Notification" in window)) {
@@ -179,10 +179,10 @@ export function NotificationBell() {
         ? ` R$ ${Number(n.data.bet_value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
         : "";
       if (isUnlock) {
-        const elapsed = n.data.elapsedSec ? ` apos ${n.data.elapsedSec}s` : "";
+        const elapsed = n.data.elapsedSec ? ` após ${n.data.elapsedSec}s` : "";
         return `${groupName} desbloqueado${elapsed}.`;
       }
-      return `${groupName} bloqueado - ${triggerName} apostou${betValue}.`;
+      return `${groupName} bloqueado — ${triggerName} apostou${betValue}.`;
     }
     const userName =
       (n.data.user_name as string) ||
@@ -521,22 +521,22 @@ export function NotificationBell() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-base font-semibold text-foreground">
-                    Ativar notificacoes
+                    Ativar notificações
                   </p>
                   <p className="text-sm text-muted-foreground mt-1">
                     Para receber os alertas em tempo real mesmo com o navegador em
-                    outra aba, voce precisa permitir as notificacoes do navegador.
+                    outra aba, você precisa permitir as notificações do navegador.
                   </p>
                   {notifPermission === "denied" && (
                     <div className="mt-3 rounded-lg bg-muted/60 dark:bg-white/[0.03] p-3 text-xs text-muted-foreground">
                       <p className="font-semibold text-foreground mb-1">
-                        Notificacoes bloqueadas
+                        Notificações bloqueadas
                       </p>
                       <p>
-                        Clique no cadeado ao lado do endereco do site, abra
-                        &quot;Configuracoes do site&quot; e altere
-                        &quot;Notificacoes&quot; para <strong>Permitir</strong>.
-                        Depois recarregue a pagina.
+                        Clique no cadeado ao lado do endereço do site, abra
+                        &quot;Configurações do site&quot; e altere
+                        &quot;Notificações&quot; para <strong>Permitir</strong>.
+                        Depois recarregue a página.
                       </p>
                     </div>
                   )}
@@ -545,7 +545,7 @@ export function NotificationBell() {
                       onClick={requestNotifPermission}
                       className="mt-4 w-full"
                     >
-                      Permitir notificacoes
+                      Permitir notificações
                     </Button>
                   )}
                 </div>
