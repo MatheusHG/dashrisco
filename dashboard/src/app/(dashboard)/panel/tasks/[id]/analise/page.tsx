@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { getFieldLabel } from "@/lib/field-labels";
+import { parseCommentImageUrls } from "@/lib/comment-images";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -275,7 +276,17 @@ export default function AnalysisWizardPage() {
                           {stepComments.map((c) => (
                             <div key={c.id}>
                               <p className="text-[11px] text-muted-foreground">{c.message.replace(prefix + " ", "")}</p>
-                              {c.imageUrl && <img src={`${apiUrl}/uploads/${c.imageUrl}`} alt="" className="max-h-24 rounded-lg border border-border mt-1" />}
+                              {(() => {
+                                const urls = parseCommentImageUrls(c.imageUrl);
+                                if (urls.length === 0) return null;
+                                return (
+                                  <div className="flex flex-wrap gap-1.5 mt-1">
+                                    {urls.map((url, ui) => (
+                                      <img key={ui} src={url} alt="" className="max-h-24 rounded-lg border border-border" />
+                                    ))}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           ))}
                         </div>
