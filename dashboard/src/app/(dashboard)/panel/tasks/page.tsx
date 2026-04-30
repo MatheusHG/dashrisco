@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { getFieldLabel, WEBHOOK_TYPES } from "@/lib/field-labels";
+import { parseCommentImageUrls } from "@/lib/comment-images";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -816,11 +817,9 @@ function TaskDetailModal({ taskId, onClose, onUpdate }: { taskId: string; onClos
                                 </button>
                               </div>
                               {item.message && <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{parseFormatted(item.message)}</p>}
-                              {item.imageUrl && (() => {
-                                const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
-                                const urls: string[] = item.imageUrl.startsWith("[")
-                                  ? JSON.parse(item.imageUrl).map((p: string) => `${apiUrl}/uploads/${p}`)
-                                  : [`${apiUrl}/uploads/${item.imageUrl}`];
+                              {(() => {
+                                const urls = parseCommentImageUrls(item.imageUrl);
+                                if (urls.length === 0) return null;
                                 return (
                                   <div className="mt-2 flex flex-wrap gap-2">
                                     {urls.map((url, ui) => (

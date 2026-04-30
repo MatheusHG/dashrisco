@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { api } from "@/lib/api";
 import { webhookTypeLabels } from "@/lib/field-labels";
+import { parseCommentImageUrls } from "@/lib/comment-images";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +29,7 @@ interface PanelTaskItem { id: string; title: string; description: string | null;
 interface Summary { totalAlerts: number; totalTasks: number; tasksOpen: number; tasksDone: number; byType: Array<{ type: string; count: number }>; byConfig: Array<{ alertConfigId: string; name: string; count: number }>; firstAlertAt: string | null; lastAlertAt: string | null; }
 interface SearchResult { alerts: PanelAlertItem[]; tasks: PanelTaskItem[]; summary: Summary | null; }
 interface ClientProfile { profile: Record<string, unknown> | null; financials: { totalDeposits: number; totalDeposited: number; totalWithdrawals: number; totalWithdrawn: number; netPnl: number; totalSportBets: number; totalCasinoBets: number; biggestCasinoWin: number; biggestSportWin: number; }; recentDeposits: Array<{ value: number; createdAt: string }>; recentWithdrawals: Array<{ value: number; createdAt: string }>; }
-interface TaskComment { id: string; userId: string | null; userName: string; message: string; createdAt: string; }
+interface TaskComment { id: string; userId: string | null; userName: string; message: string; imageUrl: string | null; createdAt: string; }
 interface TaskDetail { id: string; title: string; description: string | null; status: string; priority: number; data: Record<string, unknown> | null; assignedTo: string | null; completedBy: string | null; completedAt: string | null; createdAt: string; updatedAt: string; comments: TaskComment[]; assignedUser: { id: string; name: string } | null; completedByUser: { id: string; name: string } | null; allUsers: { id: string; name: string }[]; }
 interface HistoryEntry { id: string; action: string; details: Record<string, unknown> | null; createdAt: string; user: { id: string; name: string } | null; }
 
@@ -121,9 +122,9 @@ function TaskModal({ taskId, onClose }: { taskId: string; onClose: () => void })
   const statusStyle = STATUS_STYLES[task.status] ?? STATUS_STYLES.open;
 
   // Build unified timeline
-  type TItem = { kind: "comment"; id: string; userName: string; message: string; commentId: string; createdAt: string } | { kind: "event"; id: string; action: string; details: Record<string, unknown> | null; userName: string; createdAt: string };
+  type TItem = { kind: "comment"; id: string; userName: string; message: string; imageUrl: string | null; commentId: string; createdAt: string } | { kind: "event"; id: string; action: string; details: Record<string, unknown> | null; userName: string; createdAt: string };
   const timeline: TItem[] = [];
-  for (const c of task.comments) timeline.push({ kind: "comment", id: `c-${c.id}`, userName: c.userName, message: c.message, commentId: c.id, createdAt: c.createdAt });
+  for (const c of task.comments) timeline.push({ kind: "comment", id: `c-${c.id}`, userName: c.userName, message: c.message, imageUrl: c.imageUrl, commentId: c.id, createdAt: c.createdAt });
   for (const h of history) timeline.push({ kind: "event", id: `h-${h.id}`, action: h.action, details: h.details, userName: h.user?.name ?? "Sistema", createdAt: h.createdAt });
   timeline.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
@@ -214,7 +215,18 @@ function TaskModal({ taskId, onClose }: { taskId: string; onClose: () => void })
                             <span className="text-[10px] text-muted-foreground">{fmtDate(item.createdAt)}</span>
                             <button className="ml-auto opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive" onClick={() => deleteComment(item.commentId)}><Trash2 className="h-3 w-3" /></button>
                           </div>
-                          <p className="text-sm whitespace-pre-wrap">{item.message}</p>
+                          {item.message && <p className="text-sm whitespace-pre-wrap">{item.message}</p>}
+                          {(() => {
+                            const urls = parseCommentImageUrls(item.imageUrl);
+                            if (urls.length === 0) return null;
+                            return (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {urls.map((url, ui) => (
+                                  <img key={ui} src={url} alt={`Imagem ${ui + 1}`} className="max-h-48 rounded-lg border border-border" />
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
